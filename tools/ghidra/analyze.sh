@@ -2,7 +2,11 @@
 # Read-only loader probe of an already imported program. Never imports or changes analysis.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-: "${GHIDRA_HOME:?Set GHIDRA_HOME to your Ghidra installation directory}"
+if [[ -z "${GHIDRA_HOME:-}" && -f "$root/.env" ]]; then
+  # This local file should contain shell assignments only; environment wins when set.
+  source "$root/.env"
+fi
+: "${GHIDRA_HOME:?Set GHIDRA_HOME in the environment or the repository .env file}"
 ghidra_home=$GHIDRA_HOME
 research_root=${DRAGONRIDER_RESEARCH_ROOT:-"$root/research"}
 project_dir="$research_root/ghidra-projects"

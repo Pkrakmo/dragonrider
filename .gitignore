@@ -20,6 +20,7 @@
 !tests/fixtures/**/*.zip
 
 # Generated builds and local tooling.
+/.env
 /build/
 /build-*/
 /out/

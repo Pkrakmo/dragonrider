@@ -15,7 +15,7 @@ Close all GUI sessions using the project before headless access. The tested wrap
 ```bash
 ./tools/ghidra/analyze.sh
 ```
-Set `GHIDRA_HOME` to the installation directory before running the wrapper. The wrapper cannot reliably detect GUI sessions and its cooperative lock only covers other wrapper invocations. Do not use `-overwrite` or `-deleteProject`. See `docs/research/riot-file-loading.md` for the tested probe and its limits.
+Set `GHIDRA_HOME` to the installation directory before running the wrapper. For local convenience, copy `.env.example` to the ignored `.env` file and set `GHIDRA_HOME` there; an exported environment value takes precedence. The wrapper cannot reliably detect GUI sessions and its cooperative lock only covers other wrapper invocations. Do not use `-overwrite` or `-deleteProject`. See `docs/research/riot-file-loading.md` for the tested probe and its limits.
 
 The wrapper defaults to the checkout's `research/` directory. Set
 `DRAGONRIDER_RESEARCH_ROOT` to an absolute path to an existing private research
