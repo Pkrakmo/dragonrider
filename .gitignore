@@ -1,0 +1,30 @@
+# User-owned media, extracted data, and research databases/exports.
+/research/
+/Drakan - Order of the Flame (USA)/
+/Drakan - Order of the Flame (Europe)/
+/drakan_patch445_eng/
+/Drakan - Order of the Flame (USA).zip
+/Drakan - Order of the Flame (Europe).zip
+/drakan_patch445_eng.zip
+*.[iI][sS][oO]
+*.[cC][uU][eE]
+*.[bB][iI][nN]
+*.[cC][aA][bB]
+*.[zZ][iI][pP]
+*.[eE][xX][eE]
+*.[dD][lL][lL]
+*.[gG][pP][rR]
+*.[rR][eE][pP]/
+# Synthetic fixtures only; review contents before staging.
+!tests/fixtures/**/*.bin
+!tests/fixtures/**/*.zip
+
+# Generated builds and local tooling.
+/build/
+/build-*/
+/out/
+CMakeUserPresets.json
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
