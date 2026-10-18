@@ -49,8 +49,12 @@ function before conditional submission (`0x00440a33`–`0x00440b24` and
 alternate calls matter; these bits alone do not predict what is drawn.
 
 On these paths, values from the two groups of four runtime words are multiplied
-by the float at `0x00475b5c` or `0x00475b9c`, both bytes `80 00 80 37`
-(approximately `1/65535`), and written to per-point fields. They are consistent
+by a float and written to per-point fields. The three-point path uses the
+constant at `0x00475b5c`, bytes `80 00 80 37` (approximately `1/65535`); the
+four-point path uses `0x00475b9c`, bytes `00 00 80 37` (exactly `1/65536`).
+The previous version of this note incorrectly reported those constants as
+identical; the correction was checked against raw PE bytes on 2026-10-18.
+The resulting values are consistent
 with texture coordinates, but the complete texture association, coordinate
 orientation, clipping, winding and output are not yet established. The
 submission function copies 32 bytes per supplied point and calls a device

@@ -15,9 +15,34 @@ int main(int argc, char** argv) {
         out.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
         if (!out) throw std::runtime_error("failed to create fixture");
     };
+    write("database.db", std::string_view("version 1\r\ndependencies 1\r\n7 abc\r\n"));
+    write("database-bad.db", std::string_view("version 1\r\ndependencies 1\r\n"));
     // Synthetic header: version 0x0100, table at 12, one 14-byte entry.
     std::array<unsigned char, 26> valid{'S', 'R', 'S', 'C', 0, 1, 12, 0, 0, 0, 1, 0};
     write("valid.srsc", valid);
+    // Two caller-selected model records: one point and one three-corner group.
+    std::vector<unsigned char> model{'S','R','S','C',0,1,0,0,0,0,2,0};
+    const auto model_word = [&](std::uint16_t value) {
+        model.push_back(static_cast<unsigned char>(value)); model.push_back(static_cast<unsigned char>(value >> 8));
+    };
+    const auto model_dword = [&](std::uint32_t value) {
+        model_word(static_cast<std::uint16_t>(value)); model_word(static_cast<std::uint16_t>(value >> 16));
+    };
+    model_word(1); model_dword(0x3f800000); model_dword(0); model_dword(0);
+    const auto group_offset = static_cast<std::uint32_t>(model.size());
+    model_word(1); model_word(7); model_word(3); model_word(9);
+    for (unsigned i = 0; i < 3; ++i) { model_word(i == 2 ? 1 : 0); model_dword(i); model_dword(10 + i); }
+    const auto model_table = static_cast<std::uint32_t>(model.size());
+    for (unsigned i = 0; i < 4; ++i) model[6 + i] = static_cast<unsigned char>(model_table >> (8 * i));
+    model_word(0x203); model_word(5); model_word(7); model_dword(12); model_dword(group_offset - 12);
+    model_word(0x204); model_word(5); model_word(7); model_dword(group_offset); model_dword(model_table - group_offset);
+    write("model.srsc", model);
+    auto model_mismatch = model;
+    model_mismatch[model_table + 16] = 6;
+    write("model-mismatch.srsc", model_mismatch);
+    auto model_short = model;
+    model_short[12] = 2;
+    write("model-short.srsc", model_short);
     // Prefix length, raw prefix, two dwords, one entry, then an opaque tail.
     std::vector<unsigned char> level{'S','R','S','C',0,1,0,0,0,0,1,0,
         2,0,'x','y', 4,0,0,0, 8,0,0,0, 1,0,0,0,
@@ -65,11 +90,14 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 6; ++i) word(0);
     word(0); word(0); word(140);
     source.insert(source.end(), 36, 0);
+    std::size_t cell_index = 0;
     for (const auto& pair : std::array<std::array<std::uint32_t, 2>, 4>{{
              {0x002a0001, 0x00080002}, {0x00090003, 0x00000004},
              {0x80000005, 0xffffffff}, {0x002a0006, 0x00080007}}}) {
         source.insert(source.end(), {0,0}); word(pair[0]); word(pair[1]);
-        source.insert(source.end(), 16, 0);
+        if (cell_index++ == 0)
+            source.insert(source.end(), {1,0,2,0,3,0,4,0,0,0,1,0,254,255,255,255});
+        else source.insert(source.end(), 16, 0);
     }
     const auto source_table = static_cast<std::uint32_t>(source.size());
     for (unsigned i = 0; i < 4; ++i) source[6 + i] = static_cast<unsigned char>(source_table >> (8 * i));

@@ -3,8 +3,10 @@
 **Reviewed:** 2026-10-17 using the projects' GitHub pages and linked files.
 GitHub pages may be cached; commit dates and default branches can change. No
 third-party code, dependencies or prebuilt binaries were installed or copied.
-The project itself has no selected license yet. This is technical research,
-not a legal opinion; check exact revisions and licenses before reuse.
+DragonRider's project code and documentation use the MIT License; that does
+not grant rights to third-party projects or original game materials. This is
+technical research, not a legal opinion; check exact revisions and licenses
+before reuse.
 
 ## Ghidra MCP candidates
 

@@ -1,7 +1,7 @@
 # AGENTS.md — DragonRider
 
 ## Mission and scope
-**DragonRider** is the permanent project and repository name. Build an **independent, open-source C++20 engine reimplementation** for Windows and Linux, with *Drakan: Order of the Flame* as its initial compatibility target. Original game media are user-owned, read-only research inputs; the distributed engine must require users to supply their own assets. Do not claim this is an original-source recovery.
+**DragonRider** is the permanent project and repository name. Build an **independent, open-source C++20 engine reimplementation**, with *Drakan: Order of the Flame* as its initial compatibility target. Fedora 43 is the only active development and testing platform; Windows support may be considered later. Original game media are user-owned, read-only research inputs; the distributed engine must require users to supply their own assets. Do not claim this is an original-source recovery.
 
 Use `dragonrider` for the C++ namespace and public include directory, `dragonrider_engine` for the engine library, and `dragonrider`, `dragonrider_inspect`, and `dragonrider_viewer` for the planned main executable, asset inspector, and level viewer respectively. Preserve names of the original game, its technology, and research artifacts; see `docs/decisions/0002-project-naming.md`.
 
@@ -44,7 +44,7 @@ Use the Codex runtime's **actual available** subagent/delegation features, only 
 - If subagents are unavailable, proceed sequentially without pretending delegation occurred.
 
 ## Engineering rules
-- C++20, CMake/CTest, GCC/Clang and MSVC; prioritize reproducible, minimal-dependency builds.
+- Use C++20, CMake, Ninja, GCC and CTest on Fedora Linux; Clang is an optional secondary compiler. Do not add Windows CI, configure MSVC, or implement Windows-specific support unless explicitly requested. See `docs/CI.md`.
 - Modules: `core`, `assets/riot`, `world`, `render`, `platform`, `physics`, `animation`, `audio`, `game`; apps: inspector, level viewer, player.
 - `assets/riot` must not depend on renderer, Ghidra, platform UI or gameplay.
 - Validate every binary read: bounds, endianness, overflow, relative offsets, file length, count limits; add malformed-input tests.

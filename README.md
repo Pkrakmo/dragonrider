@@ -1,8 +1,10 @@
 # DragonRider
 
-DragonRider is an independent, open-source C++20 engine reimplementation targeting Windows and Linux. Its initial compatibility target is *Drakan: Order of the Flame*. Users must provide their own game data. This is not an original-source recovery. Research inputs are private and excluded from Git.
+DragonRider is an independent, open-source C++20 engine reimplementation. Fedora Linux is its active development and testing platform; Windows may be considered later. Its initial compatibility target is *Drakan: Order of the Flame*. Users must provide their own game data. This is not an original-source recovery. Research inputs are private and excluded from Git.
 
-A project license has not yet been added to this working directory.
+DragonRider's project code and documentation are licensed under the MIT
+License; see [LICENSE](LICENSE). Original game media and assets are not part
+of this project and are not covered by that license.
 
 ## AI disclaimer
 
@@ -24,15 +26,14 @@ cmake --build --preset release
 ctest --preset release
 ```
 
-Both presets passed 12/12 synthetic tests. The debug inspector is at
+Both presets passed 14/14 synthetic tests on 2026-10-18. The debug inspector is at
 `build/debug/dragonrider_inspect`; the release inspector is under
 `build/release/`.
 
-On Windows, the same preset commands are a starting point from a shell with a
-C++20 compiler, CMake, Ninja, and zlib development files available. CMake must
-be able to find the installed zlib headers and library. **These Windows
-instructions and builds have not been tested**; dependency setup and compiler
-environment may need platform-specific configuration.
+The GitHub Actions workflow builds and tests debug and release configurations
+on Linux and runs synthetic Python research-tool tests. Hosted results are not
+yet verified. See [CI documentation](docs/CI.md) for GCC, optional Clang,
+workflow linting, and isolated local runs with `act`.
 
 The `dragonrider_inspect` executable prints a file's size and first 16 bytes;
 for SRSC input it also validates and reports header metadata. With `--records`,
@@ -40,12 +41,21 @@ it validates every record's payload range and shows up to 50 records. With
 `--texture INDEX`, it reports the observed texture fields for a selector-`0x0040`
 record, including raw words at payload offsets 14, 18, and 34, and checks
 raw-row bounds on the nonpositive storage branch. The interpretation of those
-words depends on the runtime path. With
-`--texture-rows INDEX`, it validates raw rows or storage-word-1 zlib rows and
-reports their length and CRC32. The inspector limits the selected payload and
-decoded rows to 32 MiB each; additional blocks remain opaque. Requested
-surface masks are documented, but displayed color and orientation remain
-unverified.
+words depends on the runtime path. With `--texture-rows INDEX`, it validates
+raw rows or storage-word-1 zlib rows and reports their length and CRC32. The
+inspector limits the selected payload and decoded rows to 32 MiB each;
+additional blocks remain opaque. Requested surface masks are documented, but
+displayed color and orientation remain unverified.
+
+`--database FILE` inspects a restricted version-1 database descriptor and
+reports dependency IDs, name lengths and checksums. Names remain untrusted
+bytes and are neither printed nor opened; the full retail grammar and runtime
+resolution remain unverified. See [ADR 0016](docs/decisions/0016-database-descriptor-inspection.md).
+
+`--model-geometry POINT_RECORD GROUP_RECORD FILE` inspects an explicitly chosen
+pair of model records, reporting counts, checksums and out-of-range candidate
+point indices. It preserves raw words and does not apply transforms, version
+gates, materials or render a mesh; see [ADR 0018](docs/decisions/0018-model-geometry-inspection.md).
 
 `--palette INDEX` checks an observed selector-`0x0030` entry structure and
 reports its count and entry CRC32. It leaves any trailing bytes unvalidated
@@ -76,8 +86,10 @@ flag counts and nominal integer coordinate ranges. Runtime adjustments,
 floating-point rounding, visibility and final geometry are not represented.
 
 `--level-cell RECORD_INDEX ENTRY_INDEX COLUMN ROW normal|mode1` reports one
-raw cell and the candidate grid point order for a traced branch. The caller
-selects the orientation; these candidates do not establish rendered geometry.
+raw cell, candidate grid point order and paired integer cell words for traced
+branches. The caller selects the orientation; these candidates do not establish
+rendered geometry or final texture coordinates. The four-point and three-point
+paths use different scaling constants, neither applied by this diagnostic.
 
 `--level-source-ids DIRECTORY_INDEX BLOCKS_INDEX` compares the high halves of
 nonnegative cell dwords with explicit values in a selected directory record.
@@ -91,6 +103,8 @@ or guaranteeing a runtime load.
 
 ```sh
 ./build/debug/dragonrider_inspect --help
+./build/debug/dragonrider_inspect --database path/to/user-owned-descriptor.db
+./build/debug/dragonrider_inspect --model-geometry 2 3 path/to/user-owned-model.mod
 ./build/debug/dragonrider_inspect path/to/user-owned-file
 ./build/debug/dragonrider_inspect --records path/to/user-owned-file
 ./build/debug/dragonrider_inspect --manifest us-retail path/to/user-owned-file

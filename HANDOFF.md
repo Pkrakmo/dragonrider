@@ -1,8 +1,8 @@
 # DragonRider session handoff
 
 **Date:** 2026-10-17. Read `AGENTS.md`, `TODO.md`, and the linked research
-before resuming. Windows builds and project licensing remain
-unverified/unresolved. See `docs/GIT-WORKFLOW.md` for repository practices.
+before resuming. Windows builds remain unverified/unresolved. See
+`docs/GIT-WORKFLOW.md` for repository practices.
 
 ## Current state
 

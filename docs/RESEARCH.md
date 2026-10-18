@@ -39,6 +39,20 @@
 - **Unknown:** no reliable evidence.
 
 ## Current observations
+- **Observed (2026-10-18):** a retail model-loading path reads point triples
+  and variable-length groups from adjacent SRSC records. An independent scan
+  matched the inspector for 3,221 model pairs in 29 hashed US `.mod` files;
+  topology, materials and rendered appearance remain unresolved. See
+  [model geometry records](research/model-geometry-records.md).
+- **Observed (2026-10-18):** the selected level cell four-point and triangle
+  paths use different word scale constants, 1/65536 and approximately 1/65535
+  respectively. The previous draw note incorrectly described them as identical;
+  see the corrected [cell drawing trace](research/level-cell-draw-behavior.md)
+  and [corner associations](research/level-cell-topology.md).
+- **Observed (2026-10-18):** a retail database-loading path reads a `.db`
+  text descriptor with version and dependency fields. All 39 hash-verified US
+  samples matched the restricted inspector; same-path level directory ID sets
+  differed for all 20 paired levels. See [database descriptors](research/database-descriptors.md).
 - **Observed (2026-10-17):** the level loader's `(1,0,0)` record begins
   with a count and a variable-length first loop; a hash-verified scan measured
   the traced prefix in 23/23 selected US level files. Subsequent payload data

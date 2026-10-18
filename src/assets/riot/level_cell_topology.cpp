@@ -34,4 +34,12 @@ LevelCellCandidates level_cell_candidates(std::uint32_t width, std::uint32_t hei
     return {corners, triangle(start), triangle(start - 2)};
 }
 
+std::array<LevelCellCornerWords, 4> level_cell_corner_words(
+    const LevelCellCandidates& candidates, const std::array<std::uint16_t, 8>& words) {
+    std::array<LevelCellCornerWords, 4> result{};
+    for (std::size_t i = 0; i < result.size(); ++i)
+        result[i] = {candidates.corners[i], words[i], static_cast<std::uint16_t>(0xffffU - words[i + 4])};
+    return result;
+}
+
 } // namespace dragonrider::assets::riot

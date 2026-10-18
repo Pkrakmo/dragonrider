@@ -2,6 +2,8 @@
 #include <dragonrider/core/binary_reader.hpp>
 #include <dragonrider/assets/riot/srsc_records.hpp>
 #include <dragonrider/assets/riot/srsc_manifest.hpp>
+#include <dragonrider/assets/riot/database_descriptor.hpp>
+#include <dragonrider/assets/riot/model_geometry.hpp>
 #include <dragonrider/assets/riot/level_directory_0000.hpp>
 #include <dragonrider/assets/riot/level_0001.hpp>
 #include <dragonrider/assets/riot/level_cell_topology.hpp>
@@ -32,9 +34,12 @@ constexpr std::size_t preview_bytes = 16;
 constexpr std::size_t max_display_records = 50;
 constexpr std::size_t max_texture_bytes = 32U * 1024 * 1024;
 constexpr std::size_t max_level_entries = 4096;
+constexpr std::size_t max_database_bytes = 1024U * 1024;
 
 void usage(std::ostream& out) {
     out << "Usage: dragonrider_inspect [--records] <file>\n"
+           "       dragonrider_inspect --database <file>\n"
+           "       dragonrider_inspect --model-geometry <point-record> <group-record> <file>\n"
            "       dragonrider_inspect --manifest <edition> <file>\n"
            "       dragonrider_inspect --level-directory <record-index> <file>\n"
            "       dragonrider_inspect --level-blocks <record-index> <file>\n"
@@ -51,7 +56,9 @@ void usage(std::ostream& out) {
            "SRSC headers and table bounds are validated and reported. --records\n"
            "checks all payload ranges and shows up to 50 records. --manifest lists\n"
            "all physical ranges with supplied provenance. SRSC validation uses\n"
-           "bounded memory. --level-directory checks a level database-list prefix.\n"
+           "bounded memory. --database inspects a restricted database descriptor.\n"
+           "--model-geometry inspects explicitly selected model point and group records.\n"
+           "--level-directory checks a level database-list prefix.\n"
            "--level-blocks validates observed level blocks without interpreting them.\n"
            "--level-grid reports one entry's raw grid metadata and nominal coordinate range.\n"
            "--level-cell reports raw cell fields and candidate point sequences, not rendered triangles.\n"
@@ -102,6 +109,30 @@ void check_size_unchanged(std::ifstream& input, std::uintmax_t expected) {
     }
 }
 
+int inspect_database(const std::filesystem::path& path) {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(path, ec))
+        throw std::runtime_error("input is not an accessible regular file");
+    const auto size = std::filesystem::file_size(path, ec);
+    if (ec) throw std::runtime_error("could not determine file size");
+    if (size > max_database_bytes) throw std::length_error("database descriptor exceeds inspector limit");
+    std::ifstream input(path, std::ios::binary);
+    if (!input) throw std::runtime_error("could not open file");
+    std::string data(static_cast<std::size_t>(size), '\0');
+    read_exact(input, reinterpret_cast<std::byte*>(data.data()), data.size());
+    const auto descriptor = dragonrider::assets::riot::parse_database_descriptor(data, 4096, 4096);
+    check_size_unchanged(input, size);
+    std::cout << "Database descriptor version: 1\nDependencies: " << descriptor.dependencies.size() << '\n';
+    for (std::size_t i = 0; i < descriptor.dependencies.size(); ++i) {
+        const auto& entry = descriptor.dependencies[i];
+        const auto checksum = crc32(0, reinterpret_cast<const Bytef*>(entry.name.data()),
+                                    static_cast<uInt>(entry.name.size()));
+        std::cout << "Dependency " << i << ": id=" << entry.id << " bytes=" << entry.name.size()
+                  << " crc32=" << std::hex << std::setfill('0') << std::setw(8) << checksum << std::dec << '\n';
+    }
+    return 0;
+}
+
 struct Input {
         std::ifstream stream;
         std::uintmax_t size;
@@ -120,6 +151,46 @@ struct Input {
             records = read_records(stream, parsed, size);
         }
 };
+
+int inspect_model_geometry(const std::filesystem::path& path, std::size_t point_index, std::size_t group_index) {
+    Input input(path);
+    if (point_index >= input.records.size() || group_index >= input.records.size())
+        throw std::out_of_range("model record index exceeds record count");
+    const auto& points = input.records[point_index];
+    const auto& groups = input.records[group_index];
+    if (points.selectors[0] != 0x203 || groups.selectors[0] != 0x204)
+        throw std::invalid_argument("model record selectors are not 0x0203 and 0x0204");
+    const auto read_payload = [&](const auto& record) {
+        if (record.length > max_texture_bytes) throw std::length_error("model record exceeds inspector limit");
+        if (static_cast<std::uintmax_t>(record.offset) >
+            static_cast<std::uintmax_t>(std::numeric_limits<std::streamoff>::max()))
+            throw std::out_of_range("model record offset is not seekable");
+        input.stream.seekg(static_cast<std::streamoff>(record.offset));
+        if (!input.stream) throw std::runtime_error("could not seek to model record");
+        std::vector<std::byte> data(record.length);
+        read_exact(input.stream, data.data(), data.size());
+        return data;
+    };
+    const auto point_data = read_payload(points);
+    const auto group_data = read_payload(groups);
+    const auto parsed = dragonrider::assets::riot::parse_model_geometry(point_data, group_data, 65535, 65535, 1000000);
+    std::size_t corners = 0;
+    for (const auto& group : parsed.groups) corners += group.corners.size();
+    const auto checksum = [](const auto& data, std::size_t size) {
+        return crc32(0, reinterpret_cast<const Bytef*>(data.data()), static_cast<uInt>(size));
+    };
+    check_size_unchanged(input.stream, input.size);
+    std::cout << "Point record: " << point_index << "\nGroup record: " << group_index
+              << "\nOther selectors match: " << (points.selectors[1] == groups.selectors[1] &&
+                  points.selectors[2] == groups.selectors[2] ? "yes" : "no")
+              << "\nPoints: " << parsed.points.size() << "\nGroups: " << parsed.groups.size()
+              << "\nCorners: " << corners << "\nOut-of-range point indices: " << parsed.out_of_range_indices
+              << "\nPoint CRC32: " << std::hex << std::setfill('0') << std::setw(8) << checksum(point_data, parsed.point_data_end)
+              << "\nGroup CRC32: " << std::setw(8) << checksum(group_data, parsed.group_data_end) << std::dec
+              << "\nPoint trailing bytes (unvalidated): " << point_data.size() - parsed.point_data_end
+              << "\nGroup trailing bytes (unvalidated): " << group_data.size() - parsed.group_data_end << '\n';
+    return 0;
+}
 
 int inspect_level_texture_ids(const std::filesystem::path& level_path, std::size_t block_index,
                               std::uint16_t source_id, const std::filesystem::path& texture_path) {
@@ -200,6 +271,12 @@ int inspect_level_cell(const std::filesystem::path& path, std::size_t record_ind
     print_indices("Candidate first triangle", candidates.first_triangle);
     print_indices("Candidate second triangle", candidates.second_triangle);
     std::cout << '\n';
+    const auto corner_words = level_cell_corner_words(candidates, selected->words);
+    for (std::size_t i = 0; i < corner_words.size(); ++i) {
+        const auto& corner = corner_words[i];
+        std::cout << "Candidate corner " << i << ": grid=" << corner.grid_index
+                  << " word1=" << corner.first_word << " transformed-word2=" << corner.transformed_second_word << '\n';
+    }
     return 0;
 }
 
@@ -507,6 +584,22 @@ int main(int argc, char** argv) {
     if (argc == 2 && std::string_view(argv[1]) == "--help") {
         usage(std::cout);
         return 0;
+    }
+    if (argc == 3 && std::string_view(argv[1]) == "--database" && !std::string_view(argv[2]).starts_with('-')) {
+        try { return inspect_database(argv[2]); }
+        catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
+    }
+    if (argc == 5 && std::string_view(argv[1]) == "--model-geometry") {
+        std::size_t points = 0, groups = 0;
+        const auto parse = [](std::string_view text, std::size_t& value) {
+            const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
+            return result.ec == std::errc{} && result.ptr == text.data() + text.size();
+        };
+        if (!parse(argv[2], points) || !parse(argv[3], groups) || std::string_view(argv[4]).starts_with('-')) {
+            usage(std::cerr); return 2;
+        }
+        try { return inspect_model_geometry(argv[4], points, groups); }
+        catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
     }
     if (argc == 8 && std::string_view(argv[1]) == "--level-cell") {
         std::size_t record = 0, entry = 0;

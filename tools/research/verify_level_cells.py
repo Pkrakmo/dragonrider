@@ -27,10 +27,13 @@ def expected(entry, prefix, index, cell, mode):
         corners = (b, a, d, c)
         triangles = ((b, a, d), (d, c, b)) if not bit else ((a, d, c), (c, b, a))
     numbers = lambda values: ' '.join(map(str, values))
-    return (f'Cell: entry={entry} column={column} row={row}\nDimensions: {width}x{height}\n'
+    summary = (f'Cell: entry={entry} column={column} row={row}\nDimensions: {width}x{height}\n'
             f'Flags: {cell[0]}\nRaw dwords: {cell[1] & 0xffffffff},{cell[2] & 0xffffffff}\n'
             f'Raw words: {numbers(cell[3:])}\nCandidate corners: {numbers(corners)}\n'
             f'Candidate first triangle: {numbers(triangles[0])}\nCandidate second triangle: {numbers(triangles[1])}\n')
+    for i, grid in enumerate(corners):
+        summary += f'Candidate corner {i}: grid={grid} word1={cell[3 + i]} transformed-word2={65535 - cell[7 + i]}\n'
+    return summary
 
 
 def main():
@@ -55,7 +58,7 @@ def main():
             selected = {}
             def add(entry, prefix, index, cell):
                 totals[f'flags_{cell[0] & 3}'] += 1
-                selected.setdefault(cell[0] & 1, (entry, prefix, index, cell))
+                selected.setdefault(cell[0] & 3, (entry, prefix, index, cell))
             summary = measure(payload, on_cell_detail=add)
             totals['cells'] += summary[10]
             if args.inspector:

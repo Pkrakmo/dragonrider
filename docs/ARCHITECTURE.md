@@ -1,7 +1,7 @@
 # Architecture — DragonRider
 
 ## Objective
-DragonRider is an independent, open-source C++20 engine reimplementation for Windows and Linux, initially targeting compatibility with user-provided *Drakan: Order of the Flame* game data. No original executable or proprietary assets in releases.
+DragonRider is an independent, open-source C++20 engine reimplementation, initially targeting compatibility with user-provided *Drakan: Order of the Flame* game data. Fedora Linux is the active development and testing platform; Windows may be considered later. No original executable or proprietary assets in releases.
 
 ## Naming and current implementation
 
@@ -15,9 +15,12 @@ The project/repository is `DragonRider`; C++ namespace and public include prefix
 - `assets`: source provenance, logical IDs, caches.
 - Physical manifests preserve caller-supplied edition and container provenance separately from future logical IDs; see [ADR 0008](decisions/0008-physical-asset-manifests.md).
 - The level database-list reader preserves untrusted raw names without resolving paths; see [ADR 0009](decisions/0009-level-directory-inspection.md).
+- The restricted database descriptor reader preserves untrusted names and does not resolve them; see [ADR 0016](decisions/0016-database-descriptor-inspection.md).
+- Model point and group readers preserve raw words with explicit bounds and no renderer assumptions; see [ADR 0018](decisions/0018-model-geometry-inspection.md).
 - The `(1,0,0)` level block diagnostic validates bounded raw or zlib data without interpreting it as geometry; see [ADR 0011](decisions/0011-level-block-inspection.md).
 - Grid callbacks expose raw level observations and nominal ranges without producing meshes; see [ADR 0014](decisions/0014-level-grid-diagnostic.md).
 - Cell callbacks and explicitly selected candidate point ordering remain bounded diagnostics, not a renderer or mesh; see [ADR 0015](decisions/0015-level-cell-candidates.md).
+- Cell corner word associations expose integer observations without resolving textures or simulating submission; see [ADR 0017](decisions/0017-level-corner-word-diagnostic.md).
 - Level source-ID diagnostics compare explicitly selected records without opening or resolving paths; see [ADR 0012](decisions/0012-level-source-id-diagnostic.md).
 - Level texture diagnostics compare caller-selected files without resolving embedded names; see [ADR 0013](decisions/0013-explicit-level-texture-diagnostic.md).
 - `world`: entities, transforms, scene lifetime.

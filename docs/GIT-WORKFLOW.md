@@ -5,7 +5,9 @@ source, CMake files, portable tools, documentation, and synthetic test inputs.
 The intended layout is `include/`, `src/`, `apps/`, `tests/`, `tools/`, and
 `docs/`; see [architecture](ARCHITECTURE.md) and [research](RESEARCH.md).
 Review the origin and license of any third-party material before adding it.
-Project licensing itself remains to be decided; see the [README](../README.md).
+DragonRider's project code and documentation use the MIT License; see
+[LICENSE](../LICENSE) and the [README](../README.md). This does not license
+original game media or third-party material.
 
 ## Private inputs
 
@@ -119,6 +121,7 @@ release review and approval.
 
 When GitHub is configured, protect `main`, use pull requests and reviews for
 integration, and require passing checks. Enable secret scanning where available.
-Add GitHub Actions builds and CTest runs for Linux and Windows when the project
-and repository are ready; require the checks once they are reliable. Do not
+The GitHub Actions workflow defines Linux builds and CTest runs,
+plus synthetic research-tool tests; hosted results are not yet
+verified. Require the checks once they are reliable. Do not
 upload original assets through artifacts, releases, Git LFS, or CI fixtures.
