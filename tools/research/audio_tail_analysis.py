@@ -119,7 +119,9 @@ def compare(cue_a, cue_b, offset=673):
                               for i in range(overlap_start, overlap_end, 22050)],
                           'a_unpaired_final_frames': offset}
     result['unpaired'] = {'a_final_track': inputs[-1]['track'], 'a_final_frames': offset,
-                          'b_initial_track': inputs[0]['track'], 'b_initial_frames': offset}
+                          'b_initial_track': inputs[0]['track'], 'b_initial_frames': offset,
+                          'initial_track_leading_zero_frames': [
+                              trailing_zero_frames(maps[side][0][::-1]) for side in (0, 1)]}
     return result
 
 

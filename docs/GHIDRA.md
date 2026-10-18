@@ -4,7 +4,7 @@
 - Fedora 43, Ghidra 12.1.4. Set `GHIDRA_HOME` to the local installation directory before running the commands below.
 - Java and `javac` 25.0.4.1; `analyzeHeadless` prints usage.
 - Drakan.exe hash: `23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`.
-- The local project is `research/ghidra-projects/Drakan_US_Retail.gpr`; the imported `Drakan.exe` reports the same SHA-256. Prior auto-analysis completeness remains unknown.
+- The local project is `research/ghidra-projects/Drakan_US_Retail.gpr`; the imported `Drakan.exe` reports the same SHA-256. On 2026-10-18 the private `research/ghidra-logs/us-retail.log` was checked: the 2026-10-17 initial import reports analysis, project save and import success, but the loader did not find the referenced Windows DLLs. A later import attempt in that log failed because `/Drakan.exe` already existed. The log reports completion of that analysis run; it does not establish recovery of all code, indirect calls or references, nor prove that the current database has never changed since then.
 
 ## Safe repeatable invocation
 First list the project files (do not assume name):
@@ -72,8 +72,9 @@ time and may report unresolved Windows DLLs; cross-references may be incomplete.
 Keep the temporary project private and remove it only after all processes have
 closed and you no longer need it. Never use symlinks or hardlinks to the
 primary project as a disposable project. `/tmp` placement alone does not
-guarantee isolation. The bridge rejects project symlinks but cannot prove
-there are no hardlinks or prevent another program from opening the project.
+guarantee isolation. The bridge rejects project symlinks and regular project
+files with multiple hardlinks at the time of inspection. This check cannot
+prove isolation, eliminate races, or prevent another program from opening the project.
 Its lock coordinates only other bridge calls, not the GUI, wrapper or unrelated
 headless sessions. Avoid concurrent access, including read-only access.
 
@@ -101,6 +102,14 @@ and 14 calls matched existing evidence. The user also reported that
 `/tmp` and may need recreation after cleanup. The bridge's cooperative lock,
 read-only Ghidra flag, and temporary preferences are safeguards, not a security
 boundary. The report excludes bulk pseudocode, but is still private research.
+
+On 2026-10-18 a direct bridge `run_report` against an existing disposable
+project again reported Ghidra 12.1.4, the expected import hash, function
+`0x0045edc0`, magic `53525343`, seven references and 14 calls. Six synthetic
+bridge tests passed, including rejection of hardlinked `.gpr` and project data
+files. The configured temporary project for the registered server had expired
+and no Ghidra MCP tool was exposed in that session, so this was not a new
+Codex-initiated MCP call. Per-run bridge logs are temporary.
 
 ## Project-specific skill drafts
 

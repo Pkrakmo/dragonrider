@@ -1,10 +1,10 @@
-# Linux development and CI
+# Development and CI
 
 Fedora 43 is the active development and test platform. The primary toolchain is
 GCC with C++20, CMake 3.20+, Ninja, CTest, Python 3, and zlib development headers
-and library. The Python research tests also require NumPy. The presets enable tests and select Ninja; use a fresh build
-folder when changing compilers. Windows CI and Windows-specific work are not
-currently in scope.
+and library. The Python research tests also require NumPy. The presets enable
+tests and select Ninja; use a fresh build folder when changing compilers.
+Windows development and CI are on hold until a host is available.
 
 ```sh
 CC=gcc CXX=g++ cmake --preset debug
@@ -41,6 +41,28 @@ Python tests. `act` 0.2.89 with rootless Podman 5.8.8 and
 `catthehacker/ubuntu:act-24.04` successfully ran both matrix configurations,
 including those test suites. Its checkout step copied the local snapshot;
 this does not verify the hosted checkout or hosted runner.
+
+A subsequent fresh Fedora GCC build of the current tree passed 14/14 CTests in
+both debug and release, and the Python suites passed 55 research, 4 disc and
+6 Ghidra tests. Actionlint passed on the workflow, but the container socket was
+unavailable for a new local execution. A separate GCC build with
+`_GLIBCXX_DEBUG` and `_GLIBCXX_ASSERTIONS` passed all
+14 CTests. AddressSanitizer could not link because the local libasan runtime was
+missing; no package was installed.
+
+In a later 2026-10-18 restricted session, a newly prepared source snapshot
+again passed 14/14 CTests for each GCC configuration, plus 55 research,
+4 disc, and 6 Ghidra Python tests; actionlint 1.7.12 passed. The snapshot
+contained the project source and synthetic tests without the private research
+directory, media, Ghidra databases or original Git metadata. `act` 0.2.89
+listed the Linux job but could not execute it in that session: the normal
+rootless Podman configuration failed on the read-only `/run/user/1000/libpod`,
+and a probe using temporary Podman storage and runtime directories failed
+because `newuidmap` could not write the UID map (`Operation not permitted`).
+No Docker or Podman API socket was available. An attempted `act push` with a
+nonexistent temporary socket exited with `listen tcp: lookup <nil>: no such
+host`; no job ran. These results do not invalidate the earlier successful
+rootless Podman run, but do not verify the current snapshot with act.
 
 ## Running the workflow locally
 

@@ -1,6 +1,6 @@
 # DragonRider
 
-DragonRider is an independent, open-source C++20 engine reimplementation. Fedora Linux is its active development and testing platform; Windows may be considered later. Its initial compatibility target is *Drakan: Order of the Flame*. Users must provide their own game data. This is not an original-source recovery. Research inputs are private and excluded from Git.
+DragonRider is an independent, open-source C++20 engine reimplementation. Fedora Linux is its active development and testing platform; Windows work is on hold. Its initial compatibility target is *Drakan: Order of the Flame*. Users must provide their own game data. This is not an original-source recovery. Research inputs are private and excluded from Git.
 
 DragonRider's project code and documentation are licensed under the MIT
 License; see [LICENSE](LICENSE). Original game media and assets are not part
@@ -30,9 +30,9 @@ Both presets passed 14/14 synthetic tests on 2026-10-18. The debug inspector is 
 `build/debug/dragonrider_inspect`; the release inspector is under
 `build/release/`.
 
-The GitHub Actions workflow builds and tests debug and release configurations
-on Linux and runs synthetic Python research-tool tests. Hosted results are not
-yet verified. See [CI documentation](docs/CI.md) for GCC, optional Clang,
+The GitHub Actions workflow defines debug and release builds and synthetic tests
+on Linux, plus synthetic Python research-tool tests. Hosted results are not yet
+verified. See [CI documentation](docs/CI.md) for GCC, optional Clang,
 workflow linting, and isolated local runs with `act`.
 
 The `dragonrider_inspect` executable prints a file's size and first 16 bytes;
@@ -51,6 +51,16 @@ displayed color and orientation remain unverified.
 reports dependency IDs, name lengths and checksums. Names remain untrusted
 bytes and are neither printed nor opened; the full retail grammar and runtime
 resolution remain unverified. See [ADR 0016](docs/decisions/0016-database-descriptor-inspection.md).
+
+`--record-0102 INDEX FILE` reports an explicitly selected `0x0102` record's
+prefix length and checksum, raw following fields, and opaque tail length. It
+does not print or resolve embedded names or simulate runtime lookup; see
+[ADR 0019](docs/decisions/0019-srsc-0102-prefix-inspection.md).
+
+`--record-0102-array INDEX FILE` summarizes the subsequent conditional array
+framing with a count and checksum, leaving further data opaque. It does not
+load a runtime resource or establish the meaning of its entries; see
+[ADR 0020](docs/decisions/0020-srsc-0102-array-inspection.md).
 
 `--model-geometry POINT_RECORD GROUP_RECORD FILE` inspects an explicitly chosen
 pair of model records, reporting counts, checksums and out-of-range candidate
@@ -104,6 +114,7 @@ or guaranteeing a runtime load.
 ```sh
 ./build/debug/dragonrider_inspect --help
 ./build/debug/dragonrider_inspect --database path/to/user-owned-descriptor.db
+./build/debug/dragonrider_inspect --record-0102-array 0 path/to/user-owned-file.odb
 ./build/debug/dragonrider_inspect --model-geometry 2 3 path/to/user-owned-model.mod
 ./build/debug/dragonrider_inspect path/to/user-owned-file
 ./build/debug/dragonrider_inspect --records path/to/user-owned-file

@@ -11,7 +11,8 @@
 `research/ghidra-logs/srsc-record-behavior/run-9K4nbbcc/`. **Confidence:**
 high for these specific instructions and the relationship between the two
 fields and the file operations; extrapolation to other versions is unverified.
-Existing analysis and xref completeness are unknown.
+The initial analysis run reported success, but xref completeness remains unknown;
+see [Ghidra guidance](../GHIDRA.md).
 
 ## Observed
 
@@ -38,7 +39,8 @@ Existing analysis and xref completeness are unknown.
   same remaining-byte state from record offset 10. The three values therefore
   act as a lookup tuple on this path. The routine also has an alternate branch;
   this observation does not establish uniqueness, ordering or all search
-  behavior.
+  behavior. The alternate branch, optional stable in-memory ordering and
+  duplicate selection are traced in [SRSC lookup order](srsc-lookup-order.md).
 - Retail PE32 i386 is little-endian. Consequently these instructions consume
   the four bytes at offset 6 as a little-endian 32-bit seek argument, the four
   at offset 10 as a little-endian 32-bit initial read budget, and the first six

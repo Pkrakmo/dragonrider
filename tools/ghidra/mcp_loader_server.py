@@ -34,11 +34,16 @@ def project_check(project_dir, name):
     rep = directory / (name + '.rep')
     if gpr.is_symlink() or rep.is_symlink() or not gpr.is_file() or not rep.is_dir():
         raise ValueError("Expected a non-symlink .gpr file and .rep directory")
+    if gpr.stat().st_nlink != 1:
+        raise ValueError("Project contains a hardlinked file")
     # A project copy with links back into the persistent database is not disposable.
     for base, dirs, files in os.walk(rep, followlinks=False):
         for entry in dirs + files:
-            if (Path(base) / entry).is_symlink():
+            path = Path(base) / entry
+            if path.is_symlink():
                 raise ValueError("Project contains a symlink")
+            if path.is_file() and path.stat().st_nlink != 1:
+                raise ValueError("Project contains a hardlinked file")
     return directory
 
 

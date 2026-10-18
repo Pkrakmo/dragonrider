@@ -45,5 +45,30 @@ int main() {
     check(dragonrider::assets::riot::read_srsc_records(bad)[1].length == 0, "zero-length range at EOF");
     try { (void)dragonrider::assets::riot::read_srsc_records(std::span(bytes).first(51)); check(false, "truncated table"); }
     catch (const std::out_of_range&) {}
+    // The separately read table path must reject every truncation before
+    // accepting entries, including a hostile count on a tiny buffer.
+    const auto table = std::span(bytes).subspan(24, 28);
+    for (std::size_t length = 0; length < table.size(); ++length) {
+        try {
+            (void)dragonrider::assets::riot::read_srsc_record_table(table.first(length), 2, bytes.size());
+            check(false, "truncated independently read table");
+        } catch (const std::out_of_range& e) {
+            check(std::string(e.what()).find("table") != std::string::npos, "truncation identifies table");
+        }
+    }
+    try {
+        (void)dragonrider::assets::riot::read_srsc_record_table(table, 65535, bytes.size());
+        check(false, "large declared count with short table");
+    } catch (const std::out_of_range& e) {
+        check(std::string(e.what()).find("table") != std::string::npos, "large count identifies table");
+    }
+    check(dragonrider::assets::riot::read_srsc_record_table(std::span(bytes).subspan(24), 2, bytes.size()).size() == 2,
+          "independent table accepts trailing bytes");
+    try {
+        (void)dragonrider::assets::riot::read_srsc_record_table(table, 2, 21);
+        check(false, "independent table checks payload against file size");
+    } catch (const std::out_of_range& e) {
+        check(std::string(e.what()).find("record 1") != std::string::npos, "independent table identifies bad range");
+    }
     return failures == 0 ? 0 : 1;
 }

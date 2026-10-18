@@ -30,6 +30,14 @@ independent of sample endianness. No normalization or resampling was used.
   outside the within-track comparisons for tracks 2–7. The Europe initial
   673 frames of track 2 have no preceding AUDIO file in this analysis; the US
   final 673 frames of track 8 have no next Europe AUDIO file to pair.
+- A follow-up on 2026-10-18 measured the leading zero stereo frames in the
+  track 2 files: 88,203 for the US image and 88,876 for Europe, a difference
+  of 673 frames. Both runs include the entire 88,200-frame INDEX 00 region.
+  Thus all 673 otherwise unpaired initial Europe frames are zero; the first
+  frame after each respective run is nonzero. This characterizes the image
+  boundaries without identifying any preceding disc audio. Together with the
+  final US zero run, both unpaired outer segments are known to be zero, but
+  their absent counterparts cannot be compared.
 - The US track 8 file ends with **exactly 88,200 consecutive zero stereo
   frames**, or 2.000 seconds. The preceding frame is nonzero. Silence begins
   at file frame 9,478,560, or program frame 9,390,360. The Europe track 8
@@ -68,12 +76,15 @@ python3 tools/research/test_audio_tail.py -v
 python3 tools/research/audio_tail_analysis.py \
   'Drakan - Order of the Flame (USA)/Drakan - Order of the Flame (USA).cue' \
   'Drakan - Order of the Flame (Europe)/Drakan - Order of the Flame (Europe).cue' \
-  > research/exports/audio-comparison/audio-tail.json
+  > research/exports/audio-comparison/audio-tail-leading.json
+sha256sum -c research/exports/audio-comparison/archival.sha256
 ```
 
-Two synthetic tests passed on 2026-10-17, covering a cross-file aligned
+On 2026-10-18 the 19 archival hashes passed; the updated report agrees with
+the earlier report after excluding the added leading-zero measurement.
+Two synthetic tests passed on 2026-10-18, covering a cross-file aligned
 boundary, a zeroed final region, aggregate metrics, negative sample extrema,
-long silent suffixes and invalid offsets. The script processes comparisons in
-bounded chunks and memory-maps inputs read-only. Redirect only to a private
+long silent suffixes, different leading-zero runs and invalid offsets. The
+script processes comparisons in bounded chunks and memory-maps inputs read-only. Redirect only to a private
 output path; shell redirection is not protected by the script against an
 operator choosing an input as output.

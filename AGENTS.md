@@ -21,7 +21,7 @@ Use `dragonrider` for the C++ namespace and public include directory, `dragonrid
 - Retail `Drakan.exe` extracted at `research/installed/us/English_-_Program_Files/Drakan.exe`, copied to `research/binaries/us/Drakan.exe`; PE32 i386, 4 sections; SHA-256 `23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`.
 - User has opened the executable in Ghidra GUI. Headless import completion and exact project name/path must be verified locally, not assumed.
 - Candidate file-open function at `0x0045EDC0` reads a 12-byte header, compares four bytes with `0x0047D900`, checks `0x0100` version, seeks and reads `count * 14` bytes. **Format identity unverified.**
-- English patch 445 exists separately; do not mix patched files with retail fixtures.
+- English patch 445 exists separately. Defer further patch analysis and compatibility work until base-game work is complete; do not mix patched files with retail fixtures.
 
 ## Task allocation and model effort
 Use the Codex runtime's **actual available** subagent/delegation features, only when they exist. Prompts cannot force model switching or thinking effort; use settings if exposed. For tiny mechanical tasks work directly. Delegate independent, bounded, measurable tasks when expected time savings exceed coordination overhead (usually 2–3 workers, not five by default).
@@ -45,6 +45,7 @@ Use the Codex runtime's **actual available** subagent/delegation features, only 
 
 ## Engineering rules
 - Use C++20, CMake, Ninja, GCC and CTest on Fedora Linux; Clang is an optional secondary compiler. Do not add Windows CI, configure MSVC, or implement Windows-specific support unless explicitly requested. See `docs/CI.md`.
+- Validate workflow changes with actionlint. For local `act` runs, review an isolated source snapshot and keep original media, private research and the container-engine socket out of job containers; follow `docs/CI.md`.
 - Modules: `core`, `assets/riot`, `world`, `render`, `platform`, `physics`, `animation`, `audio`, `game`; apps: inspector, level viewer, player.
 - `assets/riot` must not depend on renderer, Ghidra, platform UI or gameplay.
 - Validate every binary read: bounds, endianness, overflow, relative offsets, file length, count limits; add malformed-input tests.

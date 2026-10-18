@@ -10,6 +10,10 @@ namespace dragonrider::assets::riot {
 
 std::vector<SrscRecord> read_srsc_record_table(std::span<const std::byte> table,
                                                 std::uint16_t count, std::uintmax_t file_size) {
+    const auto required = core::BinaryReader::checked_product(count, 14);
+    if (table.size() < required) {
+        throw std::out_of_range("SRSC record table is truncated for declared count");
+    }
     core::BinaryReader reader(table);
     std::vector<SrscRecord> records;
     records.reserve(count);

@@ -16,6 +16,7 @@ The project/repository is `DragonRider`; C++ namespace and public include prefix
 - Physical manifests preserve caller-supplied edition and container provenance separately from future logical IDs; see [ADR 0008](decisions/0008-physical-asset-manifests.md).
 - The level database-list reader preserves untrusted raw names without resolving paths; see [ADR 0009](decisions/0009-level-directory-inspection.md).
 - The restricted database descriptor reader preserves untrusted names and does not resolve them; see [ADR 0016](decisions/0016-database-descriptor-inspection.md).
+- The `0x0102` prefix and array readers expose bounded raw fields without resolving embedded references; see [ADR 0019](decisions/0019-srsc-0102-prefix-inspection.md) and [ADR 0020](decisions/0020-srsc-0102-array-inspection.md).
 - Model point and group readers preserve raw words with explicit bounds and no renderer assumptions; see [ADR 0018](decisions/0018-model-geometry-inspection.md).
 - The `(1,0,0)` level block diagnostic validates bounded raw or zlib data without interpreting it as geometry; see [ADR 0011](decisions/0011-level-block-inspection.md).
 - Grid callbacks expose raw level observations and nominal ranges without producing meshes; see [ADR 0014](decisions/0014-level-grid-diagnostic.md).

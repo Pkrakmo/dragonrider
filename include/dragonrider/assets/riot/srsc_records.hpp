@@ -16,6 +16,8 @@ struct SrscRecord {
 
 // Parse exactly count entries from an independently read table and validate
 // their ranges against the complete file size, without loading payload bytes.
+// A truncated table is rejected before allocating the result; trailing bytes
+// are ignored. Each payload range must fit, including an empty range at EOF.
 [[nodiscard]] std::vector<SrscRecord> read_srsc_record_table(
     std::span<const std::byte> table, std::uint16_t count, std::uintmax_t file_size);
 

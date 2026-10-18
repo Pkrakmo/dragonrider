@@ -42,6 +42,35 @@ reads. Actual errors and malformed-file acceptance were not reproduced. The
 index lookup and adjacency on this path do not justify assuming all editions
 or all SRSC files have this sequence.
 
+### Ordering and selector cross-check (2026-10-18)
+
+A follow-up Ghidra 12.1.4 trace on a fresh disposable US retail import,
+corroborated by `objdump`, gives more detail for the same function. At
+`0x004246f1`–`0x00424720` the high 16 bits of its supplied 32-bit value are
+compared with a runtime object's dword at `+0x114`; the chosen object supplies
+the file loader. The same value is passed to `0x0045fa10` at
+`0x00424766`–`0x0042476e` alongside `0x0200`. That helper compares its low
+16 bits to record offset 2 and does not compare offset 4. This establishes
+how the two parts are consumed on this path, not a universal ID format or
+the meaning of record offset 4. At `0x00424789`–`0x004247b6` the caller
+checks the first word at index `i+4` for `0x0208` and chooses between two
+object-construction calls; it does not prove their resulting visual behavior.
+
+The opener used here invokes the optional in-memory ordering step described in
+[SRSC lookup order](srsc-lookup-order.md), although its return is not checked.
+If ordering succeeds, `i` is an index in the reordered table. A fresh
+hash-checked scan modeled that stable ordering and first-pair search for all
+29 sampled `.mod` files: all 3,221 selected `0x0200` entries had different
+runtime-order and raw-table positions, but the four entries following each
+selection retained their original record identities. The first four records
+retained matching second and third words in all 3,221 sequences. The `i+4`
+first word was `0x0208` for 99 sequences and `0x0209` for 3,122. Both the
+second and third words on the `0x0200` entries were nonzero in this sample;
+they were equal in seven instances. These are sample measurements, not
+runtime execution or format requirements. If ordering fails, or for different
+files, index-relative behavior may differ; the inspector's explicit indices
+are always raw file-table positions.
+
 ## Measured sample
 
 All 29 hash-verified US `.mod` files contained **3,221** selector-`0x0200`
@@ -73,4 +102,6 @@ objdump -s --start-address=0x475600 --stop-address=0x475604 research/binaries/us
 python3 tools/research/verify_model_geometry.py research/installed/us research/exports/asset-inventory/us.json --inspector build/debug/dragonrider_inspect
 python3 tools/research/verify_model_geometry.py research/installed/us research/exports/asset-inventory/us.json --inspector build/release/dragonrider_inspect
 python3 -m unittest discover -s tools/research -p 'test_verify_model_geometry.py'
+python3 tools/research/measure_model_record_order.py research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research -p 'test_measure_model_record_order.py' -v
 ```

@@ -4,6 +4,7 @@
 #include <dragonrider/assets/riot/srsc_manifest.hpp>
 #include <dragonrider/assets/riot/database_descriptor.hpp>
 #include <dragonrider/assets/riot/model_geometry.hpp>
+#include <dragonrider/assets/riot/srsc_0102.hpp>
 #include <dragonrider/assets/riot/level_directory_0000.hpp>
 #include <dragonrider/assets/riot/level_0001.hpp>
 #include <dragonrider/assets/riot/level_cell_topology.hpp>
@@ -35,10 +36,13 @@ constexpr std::size_t max_display_records = 50;
 constexpr std::size_t max_texture_bytes = 32U * 1024 * 1024;
 constexpr std::size_t max_level_entries = 4096;
 constexpr std::size_t max_database_bytes = 1024U * 1024;
+constexpr std::size_t max_0102_entries = 1000000;
 
 void usage(std::ostream& out) {
     out << "Usage: dragonrider_inspect [--records] <file>\n"
            "       dragonrider_inspect --database <file>\n"
+           "       dragonrider_inspect --record-0102 <record-index> <file>\n"
+           "       dragonrider_inspect --record-0102-array <record-index> <file>\n"
            "       dragonrider_inspect --model-geometry <point-record> <group-record> <file>\n"
            "       dragonrider_inspect --manifest <edition> <file>\n"
            "       dragonrider_inspect --level-directory <record-index> <file>\n"
@@ -57,6 +61,8 @@ void usage(std::ostream& out) {
            "checks all payload ranges and shows up to 50 records. --manifest lists\n"
            "all physical ranges with supplied provenance. SRSC validation uses\n"
            "bounded memory. --database inspects a restricted database descriptor.\n"
+           "--record-0102 inspects a selected record prefix without resolving references.\n"
+           "--record-0102-array summarizes the conditional array framing.\n"
            "--model-geometry inspects explicitly selected model point and group records.\n"
            "--level-directory checks a level database-list prefix.\n"
            "--level-blocks validates observed level blocks without interpreting them.\n"
@@ -151,6 +157,51 @@ struct Input {
             records = read_records(stream, parsed, size);
         }
 };
+
+int inspect_0102(const std::filesystem::path& path, std::size_t index, bool array_mode) {
+    Input input(path);
+    if (index >= input.records.size()) throw std::out_of_range("0x0102 record index exceeds record count");
+    const auto& record = input.records[index];
+    if (record.selectors[0] != 0x0102) throw std::invalid_argument("record selector is not 0x0102");
+    if (static_cast<std::uintmax_t>(record.offset) >
+        static_cast<std::uintmax_t>(std::numeric_limits<std::streamoff>::max()))
+        throw std::out_of_range("record offset is not seekable");
+    input.stream.seekg(static_cast<std::streamoff>(record.offset));
+    if (!input.stream) throw std::runtime_error("could not seek to 0x0102 record");
+    // The prefix requires at most 65547 bytes. Array mode additionally reads
+    // two dwords and at most max_0102_entries four-byte units.
+    constexpr std::size_t prefix_limit = 65547;
+    const auto limit = array_mode ? prefix_limit + 8 + max_0102_entries * 4 : prefix_limit;
+    const auto amount = std::min<std::size_t>(record.length, limit);
+    std::vector<std::byte> bytes(amount);
+    read_exact(input.stream, bytes.data(), bytes.size());
+    if (array_mode) {
+        const auto parsed = dragonrider::assets::riot::parse_srsc_0102_array(bytes, max_0102_entries);
+        const auto checksum = crc32(0, reinterpret_cast<const Bytef*>(parsed.array_bytes.data()),
+                                    static_cast<uInt>(parsed.array_bytes.size()));
+        check_size_unchanged(input.stream, input.size);
+        std::cout << "Record: " << index << "\nCompared dword: " << parsed.compared_dword
+                  << "\nArray count: " << parsed.count
+                  << "\nArray CRC32: " << std::hex << std::setfill('0') << std::setw(8) << checksum << std::dec
+                  << "\nTrailing bytes (unvalidated): " << record.length - parsed.consumed << '\n';
+        return 0;
+    }
+    const auto parsed = dragonrider::assets::riot::parse_srsc_0102_prefix(bytes);
+    const auto checksum = crc32(0, reinterpret_cast<const Bytef*>(parsed.prefix.data()),
+                                static_cast<uInt>(parsed.prefix.size()));
+    check_size_unchanged(input.stream, input.size);
+    std::cout << "Record: " << index << "\nPrefix bytes: " << parsed.prefix.size()
+              << "\nPrefix CRC32: " << std::hex << std::setfill('0') << std::setw(8) << checksum << std::dec
+              << "\nSkipped word: " << parsed.skipped_word
+              << "\nThird selector: " << record.selectors[2]
+              << "\nRaw dword: " << parsed.raw_dword
+              << "\nDword low word: " << (parsed.raw_dword & 0xffffU)
+              << "\nDword high word: " << (parsed.raw_dword >> 16)
+              << "\nFollowing word: " << parsed.following_word
+              << "\nLast skipped word: " << parsed.last_skipped_word
+              << "\nTrailing bytes (unvalidated): " << record.length - parsed.consumed << '\n';
+    return 0;
+}
 
 int inspect_model_geometry(const std::filesystem::path& path, std::size_t point_index, std::size_t group_index) {
     Input input(path);
@@ -587,6 +638,16 @@ int main(int argc, char** argv) {
     }
     if (argc == 3 && std::string_view(argv[1]) == "--database" && !std::string_view(argv[2]).starts_with('-')) {
         try { return inspect_database(argv[2]); }
+        catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
+    }
+    if (argc == 4 && (std::string_view(argv[1]) == "--record-0102" ||
+                      std::string_view(argv[1]) == "--record-0102-array")) {
+        std::size_t index = 0;
+        const std::string_view arg(argv[2]);
+        const auto parsed = std::from_chars(arg.data(), arg.data() + arg.size(), index);
+        if (parsed.ec != std::errc{} || parsed.ptr != arg.data() + arg.size() ||
+            std::string_view(argv[3]).starts_with('-')) { usage(std::cerr); return 2; }
+        try { return inspect_0102(argv[3], index, std::string_view(argv[1]) == "--record-0102-array"); }
         catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
     }
     if (argc == 5 && std::string_view(argv[1]) == "--model-geometry") {

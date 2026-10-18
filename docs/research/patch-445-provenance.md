@@ -1,5 +1,9 @@
 # Patch archive provenance
 
+**Deferred:** Further patch 445 analysis and compatibility work is postponed
+until base-game work is complete. The observations below are preserved as
+historical provenance and do not make patch research an active priority.
+
 **Date:** 2026-10-17. The separately supplied `drakan_patch445_eng.zip` has
 SHA-256 `40e219a0cda8593be3c3489033fbf045f5c53e4cfba610b95e0836bd52458ec1`.
 The existing separate `drakan_patch445_eng/data1.cab` was inspected with

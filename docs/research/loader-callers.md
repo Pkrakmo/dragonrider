@@ -3,7 +3,7 @@
 - **Input:** US retail `research/binaries/us/Drakan.exe`, SHA-256 `23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648` (verified with `sha256sum` on 2026-10-17).
 - **Addresses:** loader `0x0045EDC0`, selected caller `0x0041E470`, path helper `0x0041E420`, suffix helper `0x00409020`, suffix table `0x0047B6BC`.
 - **Method:** Ghidra 12.1.4 headless, existing `Drakan_US_Retail` project, `-process Drakan.exe -readOnly -noanalysis`; `TraceLoaderCallers.java` lists bounded instruction windows for direct references to the seven already identified loader callers. The selected path was independently checked using GNU `objdump` disassembly and raw section bytes. Private Ghidra run: `research/ghidra-logs/loader-callers/run-MNnv7Dat/`.
-- **Confidence:** high for the specified instructions and table bytes; Ghidra xrefs describe the existing database only. Prior analysis completeness and indirect calls remain unknown.
+- **Confidence:** high for the specified instructions and table bytes; Ghidra xrefs describe the existing database only. The initial analysis run reported success, but indirect calls and reference completeness remain unknown; see [Ghidra guidance](../GHIDRA.md).
 
 ## Observed
 
@@ -26,7 +26,7 @@
 
 ## Inferred and unknown
 
-These paths support the use of the same loader across several resource types, but do not prove that every file bearing one of the suffixes is an SRSC container. The duplicate `.mod` entries do not establish a semantic distinction. The loader's other callers, actual runtime input strings, individual 14-byte table fields, and prior Ghidra analysis completeness remain unresolved. Avoid claiming that the helper replaces an existing extension or that its input values are limited to the observed table indices.
+These paths support the use of the same loader across several resource types, but do not prove that every file bearing one of the suffixes is an SRSC container. The duplicate `.mod` entries do not establish a semantic distinction. The loader's other callers, actual runtime input strings, individual 14-byte table fields, and reference completeness remain unresolved. Avoid claiming that the helper replaces an existing extension or that its input values are limited to the observed table indices.
 
 ## Reproduction
 

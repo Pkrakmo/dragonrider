@@ -21,7 +21,7 @@
 2. Retain both original BIN/CUE images for provenance.
 3. Preserve the UK audio tracks as a separate reference.
 4. Do not assume that audio differences correspond to different musical recordings.
-5. Keep official patch 445 separate from original retail data.
+5. Defer further patch 445 analysis and compatibility work until base-game work is complete; keep patch inputs separate from original retail data.
 
 ### Outstanding work
 
@@ -39,6 +39,85 @@
 - **Unknown:** no reliable evidence.
 
 ## Current observations
+- **Observed (2026-10-18):** a direct retail `0x0102` writer has a fixed-width
+  136-byte initial sequence, while the sampled `.odb` reader uses a
+  length-prefixed payload layout. Of 4,203 hash-verified US records, 136 are
+  shorter than that sequence; all have a same-file `(0x0402,0,0)` gate whose
+  dword is `0x0102`, whereas the enclosing writer emits `4` in its gate.
+  Successful writes, stable record state and writer dispatch are conditional;
+  no file production or runtime association is established. See [the writer
+  comparison](research/srsc-writer-third-state.md#follow-up-the-0x0102-writer-is-a-separate-candidate).
+- **Observed (2026-10-18):** all 4,185 nonempty `0x0102` tails have printable
+  ASCII in the high half of their second dword; its low half fits as a
+  candidate body length in 4,157, with 4,052 such bodies ending in NUL. The
+  lengths cover only part of the tails and do not establish a structure or
+  field meaning. See [the bounded byte summary](research/srsc-0102-runtime.md#candidate-second-dword).
+- **Observed (2026-10-18):** the most common tail prefix/tag pairs are `(1, In)`,
+  `(7, Wa)`, `(1, Da)`, `(7, Ty)`, `(10, Di)`, and `(0x1003, Sp)`; literal
+  immediate searches did not locate those tag constants in retail code.
+  Meanings and table-driven handling remain unknown; see [the tail
+  comparison](research/srsc-0102-runtime.md#candidate-second-dword).
+- **Observed (2026-10-18):** the retail `0x0102` consumer's traced success path
+  clears the selected record without consuming its remaining read budget. A
+  bounded disassembly scan found one direct caller and no immediate matches
+  for the common two-byte tail pairs. This does not rule out generic or
+  indirect handling; see [the caller boundary](research/srsc-0102-runtime.md#consumer-and-direct-caller-boundary).
+- **Observed (2026-10-18):** sampled `0x0102` prefix bytes are unique by exact
+  bytes within each file, but have five ASCII-case-folded repetitions. Their
+  numeric `0x0101` associations form terminating candidate chains in this
+  sample; runtime traversal remains unverified. See [the comparison](research/srsc-0102-runtime.md#0x0101-association-and-prefix-bytes-2026-10-18).
+- **Observed (2026-10-18):** 271 sampled nonzero type-5 flagged-range high
+  words match one ID in each same-path descriptor; all 129 strictly formatted
+  type-10 tag occurrences match inventoried zero-third `0x0400` selectors.
+  These are conditional numeric joins, not established runtime associations;
+  see [the comparison](research/srsc-0102-runtime.md#range-values-and-type-10-selector-comparison-2026-10-18).
+- **Observed (2026-10-18):** candidate metadata identifies flagged array-unit
+  intervals and type-10 candidate spans. In 4,203 hash-checked US records,
+  the nonempty spans cover all 6,486 units beyond the matched base counts,
+  without overlap in this sample. Runtime processing and general validity
+  remain unverified; see [the bounded comparison](research/srsc-0102-runtime.md#flagged-ranges-and-type-10-spans-2026-10-18).
+- **Observed (2026-10-18):** a correction to the `0x0102` lookup trace:
+  zero keys return the receiver rather than zero, preserving the low half
+  on the traced consumer path. Array metadata also routes two conditional
+  unit types through that lookup. The measured resource and same-path file
+  comparisons do not establish runtime source pointers or dispatch; see
+  [the trace and measurements](research/srsc-0102-runtime.md#array-processing-and-metadata-comparison-2026-10-18).
+- **Observed (2026-10-18):** the conditional `0x0102` comparison table can come
+  from a named module resource. All 4,203 sampled records match keys and
+  comparison values in the corresponding resource of the pinned US retail
+  `Dragon.rfl`; the runtime module path and execution remain unverified. See
+  [resource provenance](research/srsc-0102-runtime.md#candidate-resource-table-provenance-2026-10-18).
+- **Observed (2026-10-18):** after its known prefix, a conditional `0x0102`
+  path compares one dword and requests a count of four-byte units from the
+  next. All 4,203 measured US records contain the indicated units, while 4,185
+  have additional opaque data; runtime matches and unit meanings remain open.
+  See [the conditional trace](research/srsc-0102-runtime.md#conditional-dword-array-follow-up-2026-10-18).
+- **Observed (2026-10-18):** a conditional runtime path passes a transformed
+  `0x0102` payload dword to a model cache and, on a miss, to a `0x0200` search.
+  A lexical inventory comparison found 416 selector matches among 418 unique
+  candidate model occurrences, with two missing; this does not establish
+  runtime path resolution. See [the trace](research/srsc-0102-runtime.md).
+- **Observed (2026-10-18):** in 4,203 hash-verified US `0x0102` records, a
+  word skipped by one traced consumer equals the third selector and matches
+  one same-file `0x0101` second selector. The same comparison holds for only
+  10 of 1,561 `0x0302` records. These sample observations do not establish a
+  runtime link; see [the comparison](research/srsc-0102-runtime.md).
+- **Observed (2026-10-18):** a descriptor-loading path passes its selected
+  object through a helper to the `0x0102` consumer, which uses a payload high
+  word to search the object's dependency pairs. In 39 hash-verified same-path
+  `.odb`/`.db` pairs, six of 432 nonzero key occurrences lack a matching
+  descriptor ID; all 39 `.odb` gate records carry the consumer's expected
+  value. Runtime execution and file association remain conditional; see
+  [the trace and measurement](research/srsc-0102-runtime.md).
+- **Observed (2026-10-18):** the retail loader can stably reorder the in-memory
+  record table by its second selector word. Two lookup paths select the first
+  matching triple or pair, respectively, under their traced ordering
+  assumptions. A hash-checked scan found three duplicate triples and changed
+  table positions in 112/178 US samples. See [SRSC lookup order](research/srsc-lookup-order.md).
+- **Observed (2026-10-18):** a separate texture selector path compares all
+  three words with a zero third word. All 5,993 sampled selector-`0x0040`
+  records have zero there, so modeled pair and zero-third lookups agree for
+  those files; runtime source equivalence is unknown. See [selector 0x0040](research/selector-0040-behavior.md#selector-comparison-follow-up-2026-10-18).
 - **Observed (2026-10-18):** a retail model-loading path reads point triples
   and variable-length groups from adjacent SRSC records. An independent scan
   matched the inspector for 3,221 model pairs in 29 hashed US `.mod` files;

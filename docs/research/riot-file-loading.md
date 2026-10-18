@@ -2,7 +2,7 @@
 
 - **Source:** US retail `research/binaries/us/Drakan.exe`, SHA-256 `23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`.
 - **Method:** Ghidra 12.1.4 read-only `-process` with `-noanalysis`, using `tools/ghidra/analyze.sh`; corroborated with GNU `objdump` and raw PE bytes. The generated JSON and logs are private under `research/`.
-- **Confidence:** high for the identified instructions and bytes; caller completeness depends on existing Ghidra analysis. The status of the prior auto-analysis is not established.
+- **Confidence:** high for the identified instructions and bytes; caller completeness depends on existing Ghidra analysis. The initial import log reports analysis and save success, but the available reference set can still be incomplete; see [Ghidra guidance](../GHIDRA.md).
 
 ## Observed
 
@@ -36,4 +36,4 @@ sha256sum research/binaries/us/Drakan.exe
 
 The wrapper uses a cooperative `flock` for its own invocations, Ghidra's project locking, a unique log directory, isolated per-run preferences/cache, and never imports or saves analysis. It does not detect GUI sessions reliably; closing them remains a prerequisite. It produces one JSON per run. `python3 -m json.tool research/exports/loader-probe/run-EJNY4qji.json` successfully validated the second run; the first successful run was `run-yu3b4kfz.json`. Their JSON data are identical. Independent disassembly used `objdump -d -Mintel --start-address=0x45edc0 --stop-address=0x45ef62 research/binaries/us/Drakan.exe`.
 
-The first wrapper execution failed because Ghidra attempted to save its Java selection outside the sandbox. Isolating XDG config/cache resolved that problem; both subsequent executions completed. Missing system DLLs in an earlier import log and unresolved prior analysis completeness do not imply complete xrefs.
+The first wrapper execution failed because Ghidra attempted to save its Java selection outside the sandbox. Isolating XDG config/cache resolved that problem; both subsequent executions completed. Missing system DLLs and the successful initial analysis report do not imply complete xrefs.

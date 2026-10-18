@@ -76,6 +76,19 @@ pathlib.Path(args[args.index('-postScript')+2]).write_text(json.dumps({'magic_he
             with self.assertRaisesRegex(ValueError, 'in use'):
                 mcp.run_report(self.project, 'Disposable', self.home)
 
+    def test_project_rejects_hardlinked_files(self):
+        marker = self.project / 'Disposable.gpr'
+        link = self.root / 'marker-link'
+        os.link(marker, link)
+        with self.assertRaisesRegex(ValueError, 'hardlinked'):
+            mcp.project_check(self.project, 'Disposable')
+        link.unlink()
+        data = self.project / 'Disposable.rep' / 'data'
+        data.write_text('sample')
+        os.link(data, self.root / 'data-link')
+        with self.assertRaisesRegex(ValueError, 'hardlinked'):
+            mcp.project_check(self.project, 'Disposable')
+
     def test_rejects_wrong_executable_hash(self):
         mock = self.home / 'support' / 'analyzeHeadless'
         mock.write_text(mock.read_text().replace(mcp.RETAIL_SHA256, '0' * 64))

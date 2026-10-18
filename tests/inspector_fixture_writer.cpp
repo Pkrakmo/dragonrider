@@ -20,6 +20,32 @@ int main(int argc, char** argv) {
     // Synthetic header: version 0x0100, table at 12, one 14-byte entry.
     std::array<unsigned char, 26> valid{'S', 'R', 'S', 'C', 0, 1, 12, 0, 0, 0, 1, 0};
     write("valid.srsc", valid);
+    // One selected 0x0102 record with an opaque trailing byte.
+    std::vector<unsigned char> record0102{'S','R','S','C',0,1,28,0,0,0,1,0,
+        3,0,'a',0,'b', 0x34,0x12, 0x78,0x56,0x34,0x12, 0xbc,0x9a, 0xf0,0xde, 0xff,
+        2,1, 5,0, 0x77,0, 12,0,0,0, 16,0,0,0};
+    write("record-0102.srsc", record0102);
+    auto short0102 = record0102; short0102[28 + 10] = 14;
+    write("record-0102-short.srsc", short0102);
+    auto wrong0102 = record0102; wrong0102[28] = 3;
+    write("record-0102-wrong.srsc", wrong0102);
+    // Complete conditional array framing with one opaque byte remaining.
+    std::vector<unsigned char> array0102{'S','R','S','C',0,1,41,0,0,0,1,0,
+        0,0, 0,0, 0,0,0,0, 0,0, 0,0,
+        0x78,0x56,0x34,0x12, 2,0,0,0, 1,2,3,4,5,6,7,8, 0xff,
+        2,1, 0,0, 0,0, 12,0,0,0, 29,0,0,0};
+    write("array-0102.srsc", array0102);
+    auto truncated_array = array0102; truncated_array[41 + 10] = 27;
+    write("array-0102-short.srsc", truncated_array);
+    auto hostile_array = array0102;
+    hostile_array[28] = 0xff; hostile_array[29] = 0xff;
+    hostile_array[30] = 0xff; hostile_array[31] = 0xff;
+    write("array-0102-hostile.srsc", hostile_array);
+    // A sparse payload with a short prefix and a large opaque tail.
+    std::array<unsigned char, 26> large0102{'S','R','S','C',0,1,12,0,0,0,1,0,
+        2,1,0,0,0,0,26,0,0,0,0,0,0,4};
+    write("record-0102-large.srsc", large0102);
+    std::filesystem::resize_file(dir / "record-0102-large.srsc", 26ULL + 64ULL * 1024 * 1024);
     // Two caller-selected model records: one point and one three-corner group.
     std::vector<unsigned char> model{'S','R','S','C',0,1,0,0,0,0,2,0};
     const auto model_word = [&](std::uint16_t value) {

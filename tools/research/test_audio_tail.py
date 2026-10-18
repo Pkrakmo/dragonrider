@@ -49,6 +49,7 @@ class AudioTailTests(unittest.TestCase):
             self.assertEqual(result['terminal']['a_tail_compared_overlap']['different_frames'], 585)
             self.assertEqual(result['unpaired']['b_initial_track'], 2)
             self.assertEqual(result['unpaired']['a_final_track'], 3)
+            self.assertEqual(result['unpaired']['initial_track_leading_zero_frames'], [0, 3])
             with self.assertRaises(ValueError):
                 audio.compare(*paths, offset=589)
             with self.assertRaises(ValueError):

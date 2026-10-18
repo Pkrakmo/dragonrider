@@ -80,6 +80,50 @@ and prior analysis may be incomplete. The program was not executed.
 
 ## Inferred and unknown
 
+### Selector comparison follow-up (2026-10-18)
+
+A read-only Ghidra 12.1.4 trace on a fresh disposable US retail import and
+independent `objdump` disassembly identify a separate path at `0x0042c140`.
+It passes `(0x0040, supplied value, 0)` to `0x0045f910`, which returns the
+first matching three-word table index or `-1`. The latter uses the same
+second-word ordering flag and first-triple search pattern described in
+[SRSC lookup order](srsc-lookup-order.md); unlike `0x0045f0d0`, this traced
+function returns an index without seeking the record. This path and the
+two-word path above do not have identical comparison rules. Static evidence
+alone does not establish that both are used for the same runtime file.
+
+An independent scan rechecked all 178 SRSC input hashes against the private
+inventory and modeled the two lookups on each file's stable second-word
+ordering. Across 39 files, all 5,993 `0x0040` records had third word zero and
+distinct `(first, second)` pairs within their file. For those sampled pairs,
+the two modeled lookups select the same record. This observation is not a
+universal requirement: synthetic tests include nonzero third words and show
+that the two comparisons can select different records or that the zero-third
+lookup can find none. No game execution, runtime source equivalence or other
+editions were checked. The scan and tests can be repeated with:
+
+```sh
+python3 tools/research/measure_texture_selector_lookup.py research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research -p 'test_measure_texture_selector_lookup.py' -v
+objdump -d -Mintel --start-address=0x42c140 --stop-address=0x42c15f research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x45f910 --stop-address=0x45fa6d research/binaries/us/Drakan.exe
+```
+
+For the bounded Ghidra callsites and windows, first create a disposable project
+as described in [Ghidra guidance](../GHIDRA.md), then run with `dr_workspace`
+set to its root and `GHIDRA_HOME` configured:
+
+```sh
+XDG_CONFIG_HOME="$dr_workspace/config" XDG_CACHE_HOME="$dr_workspace/cache" \
+JAVA_TOOL_OPTIONS="-Duser.home=$dr_workspace" \
+"$GHIDRA_HOME/support/analyzeHeadless" "$dr_workspace/project" Disposable_Drakan \
+  -process Drakan.exe -readOnly -noanalysis -scriptPath "$PWD/tools/ghidra/scripts" \
+  -postScript TraceSrscSelectorCalls.java -log "$dr_workspace/selectors.log" \
+  -scriptlog "$dr_workspace/selectors-script.log" > "$dr_workspace/selectors-console.log" 2>&1
+```
+
+Its output and the original inputs remain private.
+
 The observations support a texture-header interpretation for the traced path,
 with `u32 width`, `u32 height`, `u32 row-byte count`, and `u16 bit depth` at
 payload offsets 0, 4, 8 and 12. The earlier measurement's fourth `u32` spans
