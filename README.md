@@ -52,6 +52,11 @@ reports dependency IDs, name lengths and checksums. Names remain untrusted
 bytes and are neither printed nor opened; the full retail grammar and runtime
 resolution remain unverified. See [ADR 0016](docs/decisions/0016-database-descriptor-inspection.md).
 
+`--record-0302-new INDEX FILE` reports the raw fields and bounded body span
+for the explicitly selected hypothetical new-object path, without decoding it
+or determining runtime cache state. See
+[ADR 0024](docs/decisions/0024-srsc-0302-new-object-diagnostic.md).
+
 `--record-0102 INDEX FILE` reports an explicitly selected `0x0102` record's
 prefix length and checksum, raw following fields, and opaque tail length. It
 does not print or resolve embedded names or simulate runtime lookup; see
@@ -83,6 +88,11 @@ calculate a hash; the output may contain private paths.
 using the observed level database-list layout. It reports raw-name lengths and
 checksums without resolving paths, and does not apply the original version gate.
 
+`--level-objects INDEX` checks the conditional framing of an explicitly
+selected `(0x20,0,0)` record and summarizes objects, index words and raw
+conditional-array and frame sizes.
+It does not resolve the indices or establish runtime object associations.
+
 `--level-blocks INDEX` validates the observed `(1,0,0)` level record framing
 and raw or storage-word-1 zlib blocks with bounded decoded sizes. It reports an
 aggregate checksum; other storage words, geometry and the version gate remain
@@ -94,6 +104,17 @@ diagnostics do not establish world coordinates or visual correctness.
 `--level-grid RECORD_INDEX ENTRY_INDEX` reports one grid's raw metadata,
 flag counts and nominal integer coordinate ranges. Runtime adjustments,
 floating-point rounding, visibility and final geometry are not represented.
+
+`--level-links INDEX` summarizes the first-loop inner values and compares
+their raw and low-half values with the entry count. It does not resolve links
+or establish whether the original game safely handles those values.
+
+`--level-entry RECORD_INDEX ENTRY_INDEX` reports raw entry-prefix dwords and
+the length and checksum of the intervening bytes.
+`--level-entry-find RECORD_INDEX DECIMAL_DWORD` counts matching first dwords
+and reports the first entry index. These diagnostics do not identify a runtime
+level or resolve an object, and the decimal argument may be any unsigned
+32-bit value.
 
 `--level-cell RECORD_INDEX ENTRY_INDEX COLUMN ROW normal|mode1` reports one
 raw cell, candidate grid point order and paired integer cell words for traced
@@ -120,7 +141,11 @@ or guaranteeing a runtime load.
 ./build/debug/dragonrider_inspect --records path/to/user-owned-file
 ./build/debug/dragonrider_inspect --manifest us-retail path/to/user-owned-file
 ./build/debug/dragonrider_inspect --level-directory 0 path/to/user-owned-level
+./build/debug/dragonrider_inspect --level-objects 2 path/to/user-owned-level
 ./build/debug/dragonrider_inspect --level-blocks 1 path/to/user-owned-level
+./build/debug/dragonrider_inspect --level-links 1 path/to/user-owned-level
+./build/debug/dragonrider_inspect --level-entry 1 0 path/to/user-owned-level
+./build/debug/dragonrider_inspect --level-entry-find 1 123 path/to/user-owned-level
 ./build/debug/dragonrider_inspect --level-grid 1 0 path/to/user-owned-level
 ./build/debug/dragonrider_inspect --level-cell 1 0 0 0 normal path/to/user-owned-level
 ./build/debug/dragonrider_inspect --level-source-ids 0 1 path/to/user-owned-level

@@ -456,3 +456,22 @@ objdump -d -Mintel --start-address=0x45f3d0 --stop-address=0x45f4c3 research/bin
 
 The measurement emits aggregate counts only. The source files, inventory,
 disposable project and bounded Ghidra logs remain private.
+
+## Independent C++ lookup verification, 2026-10-19
+
+The test-only C++ probe receives bounded table bytes from an independent Python
+verifier and uses the explicit file and stable-second-selector order APIs in
+[ADR 0021](../decisions/0021-srsc-record-lookup.md). Python reads each file
+once, verifies its size and SHA-256 against the private inventory, and computes
+first-match indices independently. For both debug and release builds, all
+38,926 record occurrences in 178 US files matched in both orderings: 77,852
+pair comparisons and 77,852 triple comparisons per build. This validates the
+specified model against the sampled table bytes, not the original game's runtime
+allocation, binary search or conditional choice of ordering. The probe emits
+only record indices to its parent process; original tables remain private.
+
+```sh
+python3 tools/research/verify_srsc_lookup.py research/installed/us research/exports/srsc-records/us.json build/debug/srsc_lookup_probe
+python3 tools/research/verify_srsc_lookup.py research/installed/us research/exports/srsc-records/us.json build/release/srsc_lookup_probe
+python3 -m unittest discover -s tools/research -p 'test_verify_srsc_lookup.py' -v
+```

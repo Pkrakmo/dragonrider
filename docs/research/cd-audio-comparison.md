@@ -72,6 +72,15 @@ checked with `sha256sum` against the private report:
 | US track 8 BIN | `26972b82a995d7a0bff99445ea88681be525635bc086ec6dbc369bccf490b7df` |
 | Europe track 8 BIN | `ac2fb5635365c786b17fc6568b277f15a4ec58c38b60c2d3997fcd5ea2bf2d95` |
 
+On 2026-10-19, the full anchor-and-overlap comparison was rerun with Python
+3.14.7 and NumPy 2.3.5 after all 19 archival manifest entries verified. All
+three usable anchors on each AUDIO track again supported the +673-frame
+alignment. The aligned program overlaps for tracks 2–7 had zero differing
+frames; track 8 again had 87,527 differing frames in its 9,477,887-frame
+overlap, beginning at overlap frame 9,390,360. The fresh aggregate report is
+private under ignored `research/exports/audio-comparison/`; it contains paths
+and hashes, not audio samples.
+
 ## Reproduction
 
 Python 3 with NumPy is required; the investigation used NumPy 2.3.5. Run from

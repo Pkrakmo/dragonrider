@@ -45,8 +45,23 @@ struct Level0001Cell {
     std::array<std::uint16_t, 8> words;
 };
 
+// Serialized entry prefix in file order. The byte sequence is a view into the
+// input payload and remains valid only while that payload remains alive.
+struct Level0001EntryPrefix {
+    std::size_t entry_index;
+    std::array<std::uint32_t, 7> before_bytes;
+    std::span<const std::byte> bytes;
+    std::array<std::uint32_t, 6> after_bytes;
+    std::uint32_t inner_count;
+};
+
 // Validates the observed successful path and optionally reports each cell's raw
 // dwords at offsets +2 and +6, grid points, and complete cells in file order.
+// on_inner_value reports each raw first-loop inner dword with its entry index.
+// The retail path truncates inner values to 16 bits before later array indexing;
+// this diagnostic neither truncates nor validates those indices.
+// on_entry_prefix reports the complete serialized prefix after its inner
+// array has been bounds-checked; its byte view refers to the supplied payload.
 // No runtime lookup is performed.
 // Callbacks can occur before a later validation error; discard results on failure.
 // Storage words 0 and 1 are supported; limits apply to counts and decoded data.
@@ -56,6 +71,8 @@ struct Level0001Cell {
     std::size_t max_total_decoded_bytes,
     const std::function<void(std::uint32_t, std::uint32_t)>& on_cell = {},
     const std::function<void(const Level0001GridPoint&)>& on_grid = {},
-    const std::function<void(const Level0001Cell&)>& on_cell_detail = {});
+    const std::function<void(const Level0001Cell&)>& on_cell_detail = {},
+    const std::function<void(std::size_t, std::uint32_t)>& on_inner_value = {},
+    const std::function<void(const Level0001EntryPrefix&)>& on_entry_prefix = {});
 
 } // namespace dragonrider::assets::riot

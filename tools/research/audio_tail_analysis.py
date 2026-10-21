@@ -59,6 +59,31 @@ def trailing_zero_frames(a):
     return count
 
 
+def cutoff_transition(a, b, cutoff, offset, window=44100):
+    """Compare channel steps at an aligned boundary with preceding steps."""
+    if (a.ndim != 2 or b.ndim != 2 or a.shape[1] != 2 or b.shape[1] != 2
+            or cutoff < 1 or cutoff >= len(a) or offset < 0
+            or cutoff + offset >= len(b) or window < 1):
+        raise ValueError('Invalid stereo boundary or window')
+    preceding = min(window, cutoff - 1)
+    start = cutoff - preceding - 1
+    left = a[start:cutoff + 1].astype(np.int32)
+    right = b[start + offset:cutoff + offset + 1].astype(np.int32)
+    if left.shape != right.shape:
+        raise ValueError('Aligned boundary exceeds input')
+    steps_a = np.abs(np.diff(left, axis=0))
+    steps_b = np.abs(np.diff(right, axis=0))
+    boundary_a = steps_a[-1]
+    boundary_b = steps_b[-1]
+    return {'preceding_frames': preceding,
+            'boundary_absolute_step': [boundary_a.tolist(), boundary_b.tolist()],
+            'preceding_steps_at_least_boundary': [
+                np.count_nonzero(steps_a[:-1] >= boundary_a, axis=0).tolist(),
+                np.count_nonzero(steps_b[:-1] >= boundary_b, axis=0).tolist()],
+            'preceding_aligned_frames_different': int(np.count_nonzero(
+                np.any(left[:-1] != right[:-1], axis=1)))}
+
+
 def compare(cue_a, cue_b, offset=673):
     if offset < 0:
         raise ValueError('This boundary analysis requires a nonnegative offset')
@@ -118,6 +143,8 @@ def compare(cue_a, cue_b, offset=673):
                                             b[i + offset:min(i + 22050, overlap_end) + offset])
                               for i in range(overlap_start, overlap_end, 22050)],
                           'a_unpaired_final_frames': offset}
+    if trailing and 0 < len(a) - trailing < overlap_end:
+        result['terminal']['cutoff_transition'] = cutoff_transition(a, b, len(a) - trailing, offset)
     result['unpaired'] = {'a_final_track': inputs[-1]['track'], 'a_final_frames': offset,
                           'b_initial_track': inputs[0]['track'], 'b_initial_frames': offset,
                           'initial_track_leading_zero_frames': [

@@ -3,6 +3,8 @@
 #include <dragonrider/assets/riot/srsc_header.hpp>
 #include <dragonrider/core/binary_reader.hpp>
 
+#include <algorithm>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 
@@ -35,6 +37,43 @@ std::vector<SrscRecord> read_srsc_records(std::span<const std::byte> bytes) {
     const auto table = reader.relative_bytes(0, header.table_offset,
         core::BinaryReader::checked_product(header.record_count, 14));
     return read_srsc_record_table(table, header.record_count, bytes.size());
+}
+
+std::vector<std::size_t> make_srsc_record_order(std::span<const SrscRecord> records,
+                                                SrscRecordOrder order) {
+    std::vector<std::size_t> result(records.size());
+    std::iota(result.begin(), result.end(), std::size_t{0});
+    if (order == SrscRecordOrder::stable_second_selector) {
+        std::stable_sort(result.begin(), result.end(), [&](std::size_t a, std::size_t b) {
+            return records[a].selectors[1] < records[b].selectors[1];
+        });
+    } else if (order != SrscRecordOrder::file) {
+        throw std::invalid_argument("unknown SRSC record order");
+    }
+    return result;
+}
+
+namespace {
+template <typename Predicate>
+std::optional<SrscRecordMatch> find_record(std::span<const SrscRecord> records,
+                                           std::span<const std::size_t> order,
+                                           Predicate matches) {
+    for (std::size_t i = 0; i < order.size(); ++i) {
+        if (order[i] >= records.size()) throw std::out_of_range("SRSC order index exceeds records");
+        if (matches(records[order[i]].selectors)) return SrscRecordMatch{i, order[i]};
+    }
+    return std::nullopt;
+}
+} // namespace
+
+std::optional<SrscRecordMatch> find_srsc_record_pair(std::span<const SrscRecord> records,
+    std::span<const std::size_t> order, std::uint16_t first, std::uint16_t second) {
+    return find_record(records, order, [&](const auto& s) { return s[0] == first && s[1] == second; });
+}
+
+std::optional<SrscRecordMatch> find_srsc_record_triple(std::span<const SrscRecord> records,
+    std::span<const std::size_t> order, std::array<std::uint16_t, 3> selectors) {
+    return find_record(records, order, [&](const auto& s) { return s == selectors; });
 }
 
 } // namespace dragonrider::assets::riot

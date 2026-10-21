@@ -29,6 +29,21 @@ It reads the bounded table rather than the entire file, without a 128 MiB
 input limit. Size changes during inspection are detected; unchanged-size
 concurrent modifications are not guaranteed to be detected.
 
+The opt-in `--record-0302-new INDEX FILE` diagnostic reads one selected
+hypothetical new-object framing under bounded record and body limits. It
+reports raw field and span summaries without decoding the body or deciding
+runtime cache state; the cached-object path differs. See [ADR 0024](../decisions/0024-srsc-0302-new-object-diagnostic.md).
+
+The opt-in `--level-objects INDEX FILE` diagnostic validates conditional
+framing for one explicitly selected `(0x20,0,0)` record and reports aggregate
+counts. It neither resolves the embedded object indices nor establishes
+runtime association. Its limits and evidence are in [ADR 0025](../decisions/0025-level-object-framing.md).
+
+An opt-in lookup helper returns the first pair or triple match in a caller's
+explicit file-order or stable-second-selector mapping, preserving both current
+and original indices. It does not select a runtime order automatically. See
+[ADR 0021](../decisions/0021-srsc-record-lookup.md).
+
 Unknowns include individual selector meanings, payload formats, duplicate
 lookup behavior outside the paths traced in [SRSC lookup order](srsc-lookup-order.md), alternate versions and editions, offsets at
 or above 2 GiB in the original loader, and the contents' validity. The US

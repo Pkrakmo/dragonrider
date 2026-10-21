@@ -22,6 +22,21 @@ class AudioTailTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             audio.frame_metrics(a, b[:2])
 
+    def test_cutoff_steps_and_bounds(self):
+        a = np.array([[1, -1], [3, -3], [8, -8], [0, 0]], dtype=np.int16)
+        b = np.array([[9, 9], [1, -1], [3, -3], [8, -8], [9, -7]], dtype=np.int16)
+        result = audio.cutoff_transition(a, b, 3, 1, window=2)
+        self.assertEqual(result['preceding_frames'], 2)
+        self.assertEqual(result['boundary_absolute_step'], [[8, 8], [1, 1]])
+        self.assertEqual(result['preceding_steps_at_least_boundary'], [[0, 0], [2, 2]])
+        self.assertEqual(result['preceding_aligned_frames_different'], 0)
+        with self.assertRaises(ValueError):
+            audio.cutoff_transition(a, b, 0, 1)
+        with self.assertRaises(ValueError):
+            audio.cutoff_transition(a, b, 3, 2)
+        with self.assertRaises(ValueError):
+            audio.cutoff_transition(a, b, 3, 1, window=0)
+
     def test_synthetic_cues_cross_boundary_and_tail(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -47,6 +62,10 @@ class AudioTailTests(unittest.TestCase):
             self.assertEqual(result['terminal']['a_trailing_zero_frames'], 588)
             self.assertEqual(result['terminal']['a_tail_compared_overlap']['frames'], 585)
             self.assertEqual(result['terminal']['a_tail_compared_overlap']['different_frames'], 585)
+            cutoff = result['terminal']['cutoff_transition']
+            self.assertEqual(cutoff['preceding_aligned_frames_different'], 0)
+            expected_steps = np.abs(target[-585].astype(np.int32) - target[-586].astype(np.int32))
+            self.assertEqual(cutoff['boundary_absolute_step'][1], expected_steps.tolist())
             self.assertEqual(result['unpaired']['b_initial_track'], 2)
             self.assertEqual(result['unpaired']['a_final_track'], 3)
             self.assertEqual(result['unpaired']['initial_track_leading_zero_frames'], [0, 3])

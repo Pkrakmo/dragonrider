@@ -5,8 +5,10 @@
 #include <dragonrider/assets/riot/database_descriptor.hpp>
 #include <dragonrider/assets/riot/model_geometry.hpp>
 #include <dragonrider/assets/riot/srsc_0102.hpp>
+#include <dragonrider/assets/riot/srsc_0302.hpp>
 #include <dragonrider/assets/riot/level_directory_0000.hpp>
 #include <dragonrider/assets/riot/level_0001.hpp>
+#include <dragonrider/assets/riot/level_objects_0020.hpp>
 #include <dragonrider/assets/riot/level_cell_topology.hpp>
 #include <dragonrider/assets/riot/texture_0040.hpp>
 #include <dragonrider/assets/riot/texture_0040_rows.hpp>
@@ -43,11 +45,16 @@ void usage(std::ostream& out) {
            "       dragonrider_inspect --database <file>\n"
            "       dragonrider_inspect --record-0102 <record-index> <file>\n"
            "       dragonrider_inspect --record-0102-array <record-index> <file>\n"
+           "       dragonrider_inspect --record-0302-new <record-index> <file>\n"
            "       dragonrider_inspect --model-geometry <point-record> <group-record> <file>\n"
            "       dragonrider_inspect --manifest <edition> <file>\n"
            "       dragonrider_inspect --level-directory <record-index> <file>\n"
+           "       dragonrider_inspect --level-objects <record-index> <file>\n"
            "       dragonrider_inspect --level-blocks <record-index> <file>\n"
            "       dragonrider_inspect --level-grid <record-index> <entry-index> <file>\n"
+           "       dragonrider_inspect --level-entry <record-index> <entry-index> <file>\n"
+           "       dragonrider_inspect --level-entry-find <record-index> <decimal-dword> <file>\n"
+           "       dragonrider_inspect --level-links <record-index> <file>\n"
            "       dragonrider_inspect --level-cell <record-index> <entry-index> <column> <row> <normal|mode1> <file>\n"
            "       dragonrider_inspect --level-source-ids <directory-index> <blocks-index> <file>\n"
            "       dragonrider_inspect --level-texture-ids <blocks-index> <source-id> <level-file> <texture-file>\n"
@@ -63,10 +70,15 @@ void usage(std::ostream& out) {
            "bounded memory. --database inspects a restricted database descriptor.\n"
            "--record-0102 inspects a selected record prefix without resolving references.\n"
            "--record-0102-array summarizes the conditional array framing.\n"
+           "--record-0302-new inspects the new-object branch framing without decoding its body.\n"
            "--model-geometry inspects explicitly selected model point and group records.\n"
            "--level-directory checks a level database-list prefix.\n"
+           "--level-objects summarizes conditional object framing without resolving indices.\n"
            "--level-blocks validates observed level blocks without interpreting them.\n"
            "--level-grid reports one entry's raw grid metadata and nominal coordinate range.\n"
+           "--level-entry reports raw serialized prefix fields and a byte-sequence checksum.\n"
+           "--level-entry-find compares the first prefix dword and reports the first matching index.\n"
+           "--level-links summarizes raw inner values without resolving runtime objects.\n"
            "--level-cell reports raw cell fields and candidate point sequences, not rendered triangles.\n"
            "--level-source-ids compares cell dwords with explicit directory values, not runtime loads.\n"
            "--level-texture-ids compares one explicit source and container with cell selectors.\n"
@@ -203,6 +215,70 @@ int inspect_0102(const std::filesystem::path& path, std::size_t index, bool arra
     return 0;
 }
 
+int inspect_0302_new(const std::filesystem::path& path, std::size_t index) {
+    Input input(path);
+    if (index >= input.records.size()) throw std::out_of_range("0x0302 record index exceeds record count");
+    const auto& record = input.records[index];
+    if (record.selectors[0] != 0x0302) throw std::invalid_argument("record selector is not 0x0302");
+    if (record.length > max_texture_bytes) throw std::length_error("0x0302 record exceeds inspector limit");
+    if (static_cast<std::uintmax_t>(record.offset) >
+        static_cast<std::uintmax_t>(std::numeric_limits<std::streamoff>::max()))
+        throw std::out_of_range("record offset is not seekable");
+    input.stream.seekg(static_cast<std::streamoff>(record.offset));
+    if (!input.stream) throw std::runtime_error("could not seek to 0x0302 record");
+    std::vector<std::byte> bytes(record.length);
+    read_exact(input.stream, bytes.data(), bytes.size());
+    const auto parsed = dragonrider::assets::riot::parse_srsc_0302_new_object(bytes, max_texture_bytes);
+    const auto prefix_crc = crc32(0, reinterpret_cast<const Bytef*>(parsed.prefix.data()),
+                                  static_cast<uInt>(parsed.prefix.size()));
+    const auto body_crc = crc32(0, reinterpret_cast<const Bytef*>(parsed.body.data()),
+                                static_cast<uInt>(parsed.body.size()));
+    check_size_unchanged(input.stream, input.size);
+    std::cout << "Record: " << index << "\nPrefix bytes: " << parsed.prefix.size()
+              << "\nPrefix CRC32: " << std::hex << std::setfill('0') << std::setw(8) << prefix_crc
+              << "\nFirst dword: " << std::setw(8) << parsed.first_dword << std::dec
+              << "\nWords: " << parsed.first_word << ' ' << parsed.second_word << "\nFollowing dwords:";
+    for (const auto value : parsed.following_dwords)
+        std::cout << ' ' << std::hex << std::setw(8) << value;
+    std::cout << std::dec << "\nMode: " << parsed.mode << "\nBody bytes: " << parsed.body.size()
+              << "\nBody CRC32: " << std::hex << std::setw(8) << body_crc << std::dec
+              << "\nTrailing bytes (unvalidated): " << record.length - parsed.consumed << '\n';
+    return 0;
+}
+
+int inspect_level_objects(const std::filesystem::path& path, std::size_t index) {
+    Input input(path);
+    if (index >= input.records.size()) throw std::out_of_range("level object record index exceeds record count");
+    const auto& record = input.records[index];
+    if (record.selectors != std::array<std::uint16_t, 3>{0x20, 0, 0})
+        throw std::invalid_argument("record selector is not (0x20,0,0)");
+    if (record.length > max_texture_bytes) throw std::length_error("level object record exceeds inspector limit");
+    if (static_cast<std::uintmax_t>(record.offset) >
+        static_cast<std::uintmax_t>(std::numeric_limits<std::streamoff>::max()))
+        throw std::out_of_range("record offset is not seekable");
+    input.stream.seekg(static_cast<std::streamoff>(record.offset));
+    if (!input.stream) throw std::runtime_error("could not seek to level object record");
+    std::vector<std::byte> bytes(record.length);
+    read_exact(input.stream, bytes.data(), bytes.size());
+    std::size_t references = 0, flagged = 0, array_objects = 0, array_dwords = 0, array_words = 0, frame_bytes = 0;
+    const auto parsed = dragonrider::assets::riot::inspect_level_objects_0020(bytes, 1000000, [&](const auto& obj) {
+        references += obj.index_words.size() / 2;
+        flagged += (obj.dwords[6] & 0x100U) != 0;
+        array_objects += !obj.conditional_dwords.empty();
+        array_dwords += obj.conditional_dwords.size() / 4;
+        array_words += obj.conditional_words.size() / 2;
+        frame_bytes += obj.conditional_frames.size();
+    });
+    check_size_unchanged(input.stream, input.size);
+    std::cout << "Record: " << index << "\nObjects: " << parsed.objects
+              << "\nIndex words: " << references << "\nFlag 0x100 objects: " << flagged
+              << "\nObjects with conditional arrays: " << array_objects
+              << "\nConditional dwords: " << array_dwords << "\nConditional words: " << array_words
+              << "\nConditional frame bytes: " << frame_bytes
+              << "\nTrailing bytes (unvalidated): " << record.length - parsed.consumed << '\n';
+    return 0;
+}
+
 int inspect_model_geometry(const std::filesystem::path& path, std::size_t point_index, std::size_t group_index) {
     Input input(path);
     if (point_index >= input.records.size() || group_index >= input.records.size())
@@ -334,7 +410,8 @@ int inspect_level_cell(const std::filesystem::path& path, std::size_t record_ind
 int inspect(const std::filesystem::path& path, bool show_records, std::optional<std::size_t> texture_index, bool decode_rows,
             std::optional<std::size_t> palette_index, const std::optional<std::string>& edition,
             std::optional<std::size_t> level_index, bool level_blocks,
-            std::optional<std::size_t> source_blocks_index, std::optional<std::size_t> grid_entry) {
+            std::optional<std::size_t> source_blocks_index, std::optional<std::size_t> grid_entry, bool level_links,
+            bool level_entry, bool level_entry_find) {
     std::error_code ec;
     if (!std::filesystem::is_regular_file(path, ec)) {
         throw std::runtime_error("input is not an accessible regular file");
@@ -388,6 +465,65 @@ int inspect(const std::filesystem::path& path, bool show_records, std::optional<
             if (!input) throw std::runtime_error("could not seek to level record");
             std::vector<std::byte> payload(record.length);
             read_exact(input, payload.data(), payload.size());
+            if (level_links) {
+                dragonrider::core::BinaryReader prefix(payload);
+                const auto entry_count = prefix.read_u32(dragonrider::core::ByteOrder::little);
+                std::size_t high = 0, raw_outside = 0, low_outside = 0, self = 0;
+                const auto collect = [&](std::size_t entry, std::uint32_t value) {
+                    const auto low = value & 0xffffU;
+                    high += (value >> 16) != 0;
+                    raw_outside += value >= entry_count;
+                    low_outside += low >= entry_count;
+                    self += low == entry;
+                };
+                const auto summary = dragonrider::assets::riot::inspect_level_0001(
+                    payload, max_level_entries, max_level_entries, max_texture_bytes,
+                    256U * 1024 * 1024, {}, {}, {}, collect);
+                check_size_unchanged(input, file_size);
+                std::cout << "Level links record: " << *level_index << "\nEntries: " << summary.entries
+                          << "\nInner values: " << summary.inner_values
+                          << "\nNonzero high halves: " << high
+                          << "\nRaw values outside entry count: " << raw_outside
+                          << "\nLow halves outside entry count: " << low_outside
+                          << "\nLow halves equal entry index: " << self << '\n';
+                return 0;
+            }
+            if (grid_entry && (level_entry || level_entry_find)) {
+                using dragonrider::assets::riot::Level0001EntryPrefix;
+                std::optional<Level0001EntryPrefix> selected;
+                std::size_t matches = 0;
+                const auto collect = [&](const Level0001EntryPrefix& entry) {
+                    if (level_entry_find ? entry.before_bytes[0] == *grid_entry : entry.entry_index == *grid_entry) {
+                        if (!selected) selected = entry;
+                        ++matches;
+                    }
+                };
+                const auto summary = dragonrider::assets::riot::inspect_level_0001(
+                    payload, max_level_entries, max_level_entries, max_texture_bytes,
+                    256U * 1024 * 1024, {}, {}, {}, {}, collect);
+                if (level_entry_find) {
+                    check_size_unchanged(input, file_size);
+                    std::cout << "Matching entries: " << matches << "\nFirst matching entry: ";
+                    if (selected) std::cout << selected->entry_index;
+                    else std::cout << "none";
+                    std::cout << '\n';
+                    return 0;
+                }
+                if (*grid_entry >= summary.entries || !selected)
+                    throw std::out_of_range("level entry index exceeds entry count");
+                check_size_unchanged(input, file_size);
+                const auto checksum = crc32(0, reinterpret_cast<const Bytef*>(selected->bytes.data()),
+                                            static_cast<uInt>(selected->bytes.size()));
+                std::cout << "Level entry: " << *grid_entry << "\nPrefix dwords:";
+                for (const auto value : selected->before_bytes)
+                    std::cout << " " << std::hex << std::setw(8) << std::setfill('0') << value;
+                std::cout << std::dec << "\nByte sequence length: " << selected->bytes.size()
+                          << "\nByte sequence CRC32: " << std::hex << std::setw(8) << checksum
+                          << "\nFollowing dwords:";
+                for (const auto value : selected->after_bytes) std::cout << " " << std::setw(8) << value;
+                std::cout << std::dec << "\nInner count: " << selected->inner_count << '\n';
+                return 0;
+            }
             if (grid_entry) {
                 using dragonrider::assets::riot::Level0001GridPoint;
                 std::optional<Level0001GridPoint> first;
@@ -640,6 +776,24 @@ int main(int argc, char** argv) {
         try { return inspect_database(argv[2]); }
         catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
     }
+    if (argc == 4 && std::string_view(argv[1]) == "--level-objects") {
+        std::size_t index = 0;
+        const std::string_view arg(argv[2]);
+        const auto parsed = std::from_chars(arg.data(), arg.data() + arg.size(), index);
+        if (parsed.ec != std::errc{} || parsed.ptr != arg.data() + arg.size() ||
+            std::string_view(argv[3]).starts_with('-')) { usage(std::cerr); return 2; }
+        try { return inspect_level_objects(argv[3], index); }
+        catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
+    }
+    if (argc == 4 && std::string_view(argv[1]) == "--record-0302-new") {
+        std::size_t index = 0;
+        const std::string_view arg(argv[2]);
+        const auto parsed = std::from_chars(arg.data(), arg.data() + arg.size(), index);
+        if (parsed.ec != std::errc{} || parsed.ptr != arg.data() + arg.size() ||
+            std::string_view(argv[3]).starts_with('-')) { usage(std::cerr); return 2; }
+        try { return inspect_0302_new(argv[3], index); }
+        catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
+    }
     if (argc == 4 && (std::string_view(argv[1]) == "--record-0102" ||
                       std::string_view(argv[1]) == "--record-0102-array")) {
         std::size_t index = 0;
@@ -702,7 +856,10 @@ int main(int argc, char** argv) {
     const bool records = argc == 3 && std::string_view(argv[1]) == "--records";
     const bool manifest = argc == 4 && std::string_view(argv[1]) == "--manifest";
     const bool level_grid = argc == 5 && std::string_view(argv[1]) == "--level-grid";
-    const bool level_blocks = level_grid || (argc == 4 && std::string_view(argv[1]) == "--level-blocks");
+    const bool level_entry = argc == 5 && std::string_view(argv[1]) == "--level-entry";
+    const bool level_entry_find = argc == 5 && std::string_view(argv[1]) == "--level-entry-find";
+    const bool level_links = argc == 4 && std::string_view(argv[1]) == "--level-links";
+    const bool level_blocks = level_grid || level_entry || level_entry_find || level_links || (argc == 4 && std::string_view(argv[1]) == "--level-blocks");
     const bool level_sources = argc == 5 && std::string_view(argv[1]) == "--level-source-ids";
     const bool level = level_sources || level_blocks || (argc == 4 && std::string_view(argv[1]) == "--level-directory");
     const bool texture_rows = argc == 4 && std::string_view(argv[1]) == "--texture-rows";
@@ -724,13 +881,14 @@ int main(int argc, char** argv) {
         if (level) level_index = value;
         else if (palette) palette_index = value;
         else texture_index = value;
-        if (indexed || level_sources || level_grid) {
+        if (indexed || level_sources || level_grid || level_entry || level_entry_find) {
             const std::string_view second(argv[3]);
             const auto other = std::from_chars(second.data(), second.data() + second.size(), value);
-            if (other.ec != std::errc{} || other.ptr != second.data() + second.size()) {
+            if (other.ec != std::errc{} || other.ptr != second.data() + second.size() ||
+                (level_entry_find && value > std::numeric_limits<std::uint32_t>::max())) {
                 usage(std::cerr); return 2;
             }
-            if (level_grid) grid_entry = value;
+            if (level_grid || level_entry || level_entry_find) grid_entry = value;
             else if (level_sources) source_blocks_index = value;
             else palette_index = value;
         }
@@ -741,7 +899,7 @@ int main(int argc, char** argv) {
     }
     try {
         const std::optional<std::string> edition = manifest ? std::optional<std::string>(argv[2]) : std::nullopt;
-        return inspect(std::filesystem::path(argv[argc - 1]), records, texture_index, texture_rows, palette_index, edition, level_index, level_blocks, source_blocks_index, grid_entry);
+        return inspect(std::filesystem::path(argv[argc - 1]), records, texture_index, texture_rows, palette_index, edition, level_index, level_blocks, source_blocks_index, grid_entry, level_links, level_entry, level_entry_find);
     } catch (const std::exception& error) {
         std::cerr << "Error: " << error.what() << '\n';
         return 1;

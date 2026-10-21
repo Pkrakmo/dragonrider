@@ -70,5 +70,28 @@ int main() {
     } catch (const std::out_of_range& e) {
         check(std::string(e.what()).find("record 1") != std::string::npos, "independent table identifies bad range");
     }
+    using namespace dragonrider::assets::riot;
+    const std::array<SrscRecord, 5> lookup_records{{
+        {{1, 9, 2}, 1, 1}, {{1, 2, 7}, 2, 1}, {{1, 2, 8}, 3, 1},
+        {{1, 2, 7}, 4, 1}, {{5, 0, 0}, 5, 1}}};
+    const auto original = make_srsc_record_order(lookup_records, SrscRecordOrder::file);
+    const auto ordered = make_srsc_record_order(lookup_records, SrscRecordOrder::stable_second_selector);
+    check(ordered == std::vector<std::size_t>{4, 1, 2, 3, 0}, "stable selector order");
+    const auto pair = find_srsc_record_pair(lookup_records, ordered, 1, 2);
+    check(pair && pair->ordered_index == 1 && pair->original_index == 1, "pair chooses first duplicate group member");
+    const auto triple = find_srsc_record_triple(lookup_records, ordered, {1, 2, 8});
+    check(triple && triple->ordered_index == 2 && triple->original_index == 2, "triple checks third selector");
+    const auto duplicate = find_srsc_record_triple(lookup_records, ordered, {1, 2, 7});
+    check(duplicate && duplicate->original_index == 1, "triple chooses first duplicate");
+    const auto file_match = find_srsc_record_pair(lookup_records, original, 1, 9);
+    const auto sorted_match = find_srsc_record_pair(lookup_records, ordered, 1, 9);
+    check(file_match && sorted_match && file_match->original_index == sorted_match->original_index &&
+          file_match->ordered_index == 0 && sorted_match->ordered_index == 4, "order changes position, not record");
+    check(!find_srsc_record_pair(lookup_records, ordered, 1, 3), "missing pair");
+    check(!find_srsc_record_triple(lookup_records, ordered, {1, 2, 9}), "missing triple");
+    const std::array<std::size_t, 1> bad_order{lookup_records.size()};
+    try { (void)find_srsc_record_pair(lookup_records, bad_order, 1, 2); check(false, "bad ordering index"); }
+    catch (const std::out_of_range&) {}
+    check(make_srsc_record_order({}, SrscRecordOrder::stable_second_selector).empty(), "empty order");
     return failures == 0 ? 0 : 1;
 }

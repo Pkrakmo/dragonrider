@@ -372,10 +372,12 @@ python3 tools/research/measure_0102_tail_bytes.py research/installed/us research
 
 A bounded whole-image disassembly scan found one direct relative call to
 `0x00429b00`, at `0x0041e5c1`. Its caller then invokes other readers with the
-same loader argument but different global objects at `0x0041e5d5`,
+same source-object argument but different global objects at `0x0041e5d5`,
 `0x0041e5e9`, `0x0041e5fd`, `0x0041e611`, and `0x0041e625`. This shows the
 consumer is one stage in a larger load routine; it does not establish what
 those other methods do with the current record or rule out indirect callers.
+The source object contains several loader pointers; the argument is not itself
+the selected loader. See the subsequent loader-stage follow-up below.
 
 In the traced success path, `0x00429b00` reads its length-prefixed field,
 performs the conditional resource-table comparison, reads the dword array,
@@ -625,6 +627,11 @@ python3 -m unittest discover -s tools/research -p 'test_measure_0102_label_names
 
 ## Range values and type-10 selector comparison, 2026-10-18
 
+The later [type-12 lookup investigation](level-0001-prefix.md#first-dword-lookup-and-type-12-candidates-2026-10-19)
+traces another dispatch branch to a level entry's first dword and compares
+candidate range values with hash-checked US levels. The active level and
+runtime state remain unknown.
+
 **Observed, static:** on the conditional flagged-range branch above,
 `0x0042a085`–`0x0042a09d` passes each addressed unit to `0x0042a180` using
 the descriptor's low 12 type bits. Thus, if the other assumptions in the
@@ -707,3 +714,375 @@ python3 tools/research/verify_srsc_0102_array.py research/installed/us research/
 python3 tools/research/verify_srsc_0102_array.py research/installed/us research/exports/srsc-records/us.json build/release/dragonrider_inspect
 # Both: files=178 files_with_0102=39 comparisons=4203 entries=84258
 ```
+
+## Tail framing hypotheses, 2026-10-19
+
+**Observed, sample measurement:** Python 3.14.7 re-read and SHA-256 checked
+178 US retail SRSC inventory files, including 39 with 4,203 `0x0102` records.
+After the conditional array framing, 18 records have no tail and 4,185 have a
+nonempty tail. The independent scanner starts four bytes into each nonempty
+tail, interprets the next two bytes as a little-endian length, and counts the
+following *length* bytes as a candidate frame body. This body includes the two
+printable bytes previously described as the high half of the second dword.
+All 4,185 first candidate bodies fit; 1,389 end in NUL and 28 end exactly at
+the record boundary. The difference from the earlier 4,157 fitting bodies is
+that the earlier experiment started its candidate body **after** those two
+printable bytes, rather than including them in the stated length.
+
+Continuing at the first candidate body's end, a second candidate length and
+body fit in 4,052 tails, of which 860 end in NUL; 105 declare a body longer
+than the available bytes and 28 lack a complete next length. None of the
+second bodies ends at the record boundary. Repeating this framing greedily
+reaches the boundary for only 30 tails; 4,149 encounter an oversized body and
+six a truncated length, after 11,319 fitting candidate bodies in total. The
+loop permits zero lengths, advances at least two bytes per iteration, and has
+a 65,536-frame limit; no sampled tail hit the limit.
+
+Two further models treat the initial dword, or only its low 12 bits, as a
+count of these consecutive frames. The full-dword model reaches the boundary
+for one tail, leaves bytes for 2,228, and fails for 1,956; the low-12 model
+reaches the boundary for one, leaves bytes for 2,275, and fails for 1,909.
+Thus neither simple count model explains the sampled tails. These are bounded
+byte experiments, not evidence that the game parses these candidate frames,
+that the initial dword is a count or flag field, or that their bodies are
+strings. The actual tail grammar and runtime consumers remain unknown. No game
+execution, Ghidra project access, patch inputs, or source byte dumps were used.
+Confidence is high for this hash-checked sample and the specified algorithms,
+not for other editions or runtime interpretation. Concurrent modification
+within a file read is not excluded; the inventory's recorded hashes verify the
+read snapshots. A later [metadata-based frame comparison](#metadata-frame-tail-comparison-2026-10-19)
+fits the complete sample using a different framing and count; runtime
+consumption remains unknown.
+
+```sh
+python3 --version
+python3 tools/research/measure_0102_tail_framing.py research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research -p 'test_measure_0102_tail_framing.py' -v
+```
+
+
+## Immediate subsequent loader stage, 2026-10-19
+
+**Observed, static:** the larger load routine at `0x0041e5a0` passes the
+same source-object pointer to the `0x0102` reader and its immediate successor
+`0x00435540`. The `0x0102` reader uses the loader pointer in source-object
+slot `+0x120`, optionally calling `0x0041e470` with index 0. Its successor
+instead uses slot `+0x144`, optionally calling that helper with index 3
+(`0x0043554d`–`0x00435573`). Thus the earlier phrase “same loader argument”
+was imprecise: both receive the same source object, but load distinct pointer
+slots. The suffix construction trace associates indices 0 and 3 with `.odb`
+and `.txd` respectively when no extension already exists; actual runtime
+paths, preexisting loader state and pointer aliasing are unverified.
+
+The successor's next operation on its selected loader requests tuple
+`(0x0402, 0, 0)` at `0x00435579`–`0x00435593`. On a successful selection it
+reads a dword and clears that selection, then compares the dword with `0x0204`.
+On the matching branch it iterates entries and, if a third selector is zero
+and the first is `0x0030`, selects that indexed record (`0x004355ea`–
+`0x00435622`). These instructions do not consume the previous reader's
+unselected `0x0102` tail directly; if the slots alias, the new selection can
+change loader position and state. This limited trace does not exclude aliases or indirect callbacks, or show
+any runtime execution. The initial operations of the four later methods are
+examined below. Confidence is high for the bounded instructions, limited
+for file and runtime identity. No Ghidra project was accessed.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe
+objdump --version
+objdump -d -Mintel --start-address=0x41e5a0 --stop-address=0x41e648 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x429b3d --stop-address=0x429ba9 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x435540 --stop-address=0x435630 research/binaries/us/Drakan.exe
+```
+
+
+## Remaining source-object loader stages, 2026-10-19
+
+**Observed, static:** on successive permitted branches the load routine at
+`0x0041e5a0` passes the same source object to four more stages. Each loads a
+separate pointer slot and optionally opens it with the listed index. Each then
+requests `(0x0402, 0, 0)`, conditionally reads a dword, clears the selection,
+and compares the result to the listed value:
+
+| Stage | Source slot | Open index | Conditional suffix | Compared value |
+| --- | --- | --- | --- | --- |
+| `0x004158b0` | `+0x150` | 4 | `.adb` | `0x0102` |
+| `0x004245d0` | `+0x12c` | 1 | `.mod` | `0x010a` |
+| `0x00431830` | `+0x15c` | 5 | `.sdb` | `0x0104` |
+| `0x0042f2f0` | `+0x168` | 6 | `.ssd` | `0x0102` |
+
+The first three initially use `0x0100` as the fallback comparison value;
+the last uses `0x0101`. The `.txd` and `.odb` stages are described above.
+Suffixes are conditional on an extensionless source path; preexisting loader
+pointers, runtime execution, file identity and pointer aliasing remain
+unknown. Different source-object slots are not proof of distinct pointers.
+No Ghidra project or game execution was involved.
+
+**Sample measurement:** Python 3.14.7 checked the sizes and SHA-256 hashes of
+all 178 US SRSC inventory files, then classified the six suffix groups above
+and in the preceding trace. Each of the 153 matching-extension files contains
+exactly one `(0x0402, 0, 0)` entry of at least four bytes, whose initial dword
+matches the respective static comparison: 39 `.odb`, 38 `.txd`, 12 `.adb`,
+29 `.mod`, 19 `.sdb`, and 16 `.ssd`. The other 25 files have different
+extensions and are not classified. This lexical comparison does not establish
+actual runtime filenames, selection success or format invariants. Confidence
+is high for the bounded instruction paths and checked snapshots, limited for
+runtime associations and other editions. Concurrent file modification during
+reading is not excluded; each read buffer is checked against its hash.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe
+objdump --version
+objdump -d -Mintel --start-address=0x4158b0 --stop-address=0x415947 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x4245d0 --stop-address=0x424684 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x431830 --stop-address=0x4318dd research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x42f2f0 --stop-address=0x42f381 research/binaries/us/Drakan.exe
+python3 tools/research/measure_srsc_stage_gates.py research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research -p 'test_measure_srsc_stage_gates.py' -v
+```
+
+## Metadata frame tail comparison, 2026-10-19
+
+**Measured:** an independent bounded scan of the 178 hash-verified US SRSC
+snapshots interprets each `0x0102` tail after the previously measured array
+as a candidate sequence of its declared metadata-count frames. Each frame is
+a little-endian dword, a little-endian 16-bit byte length, and that many
+bytes. The script pins the same US `Dragon.rfl` SHA-256
+`9b6496b65e962cf35dd1e18f424f2c8af08ceade78331dcc0b6da332ce844ac3`
+and uses the previously documented unique resource-key comparison.
+
+All 4,203 sampled records contain exactly the declared number of frames and
+end at the record boundary, including records with zero declared frames. All
+77,772 frame dwords equal their corresponding candidate metadata descriptor
+flags. All 77,772 frame bodies, after removing at most one terminal NUL,
+equal the bounded NUL-terminated bytes at the descriptor-relative offset in
+the descriptor's first dword. Offsets are tested against the resource bounds
+and a 512-byte terminator limit; neither a general string encoding nor a
+runtime pointer interpretation is established by this comparison. The
+previous [tail framing hypotheses](#tail-framing-hypotheses-2026-10-19)
+tested different count and framing models; this one uses the separate
+declared metadata count and includes a dword for *each* frame.
+
+Of the 77,772 bodies, 35,200 have one terminal NUL and 42,572 have none;
+none has an embedded NUL. Grouped by candidate resource key and descriptor
+index, all occurrences of each of the 2,947 represented descriptors have
+identical raw bodies, including their NUL treatment. This is a sample
+property, not an additional format constraint.
+
+**Observed, static:** the retail helper `0x0045f750` scans a NUL-terminated
+input, masks the scan count with `0xfffe`, writes its low 16 bits, then, if
+that write succeeds, writes that many bytes from the input. For short input
+strings this gives an even byte count: a terminal NUL is included when the
+text length is odd, and omitted when it is even. All 77,772 measured bodies
+follow that rule; the same holds for all 13,418 joined level frames. The
+input executable is US retail `Drakan.exe`, SHA-256
+`23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`;
+the method is GNU objdump 2.45.1-5.fc43, without game execution. Two direct
+calls to this helper appear in the disassembly, at `0x0040b5ed` and
+`0x0040e2d5`; these are in the documented `0x0400` and `0x0022` writer
+paths, respectively. Neither identifies a writer for the sampled `0x0102` or
+level frames. Indirect calls, other implementations and external tools
+remain possible. Matching output does not identify the producer or prove the
+helper was called for these records.
+
+**Observed, static, module follow-up:** in the hash-pinned US `Dragon.rfl`,
+GNU objdump 2.45.1-5.fc43 shows a second helper at `0x10156440` with the
+same scan-and-mask rule. Its lower-level write helper checks mode 2 and a
+selected record, then uses the module's `WriteFile` import. A whole-image
+disassembly search finds one direct call to the string helper, at
+`0x1001613b`. The enclosing `0x10016110` first calls record initializer
+`0x101562f0` with immediate first two selector values `0x0401` and `0x037b`,
+then passes a pointer at object `+4` to the string helper and closes the
+record. The caller does not check those return values in this sequence.
+The initializer stores the two arguments in the first two words of a
+14-byte entry and copies existing writer state into its third word. No
+execution, actual output file, indirect calls or alternate writers were
+established. This does not identify the sampled frame producer; the scan
+only covers direct relative calls in this one module. The same scan finds
+two direct calls to this initializer: both have immediate first selector
+`0x0401`, with second selector `0x037b` or `0x037d` respectively. The latter
+does not call the string helper in the inspected sequence. This bounded
+negative result does not rule out a different writer or indirect call.
+
+In the 178 hash-checked US SRSC snapshots, neither `(0x0401, 0x037b)` nor
+`(0x0401, 0x037d)` occurs as a first/second selector pair, regardless of
+third selector. This does not establish the module writer's target file,
+execution, complete installation or behavior in another edition.
+
+**Observed, static, RFL follow-up:** for US retail
+`English_-_Program_Files/Dragon.rfl` (SHA-256
+`9b6496b65e962cf35dd1e18f424f2c8af08ceade78331dcc0b6da332ce844ac3`), GNU
+objdump 2.45.1-5.fc43 shows that the initializer scan has a concrete
+limitation: another module routine, `0x10016a80`, invokes the raw write helper
+`0x101563e0` with a
+two-byte value followed by a byte span. Before these calls it uses the input
+object's word at `+2` to index a table reached through module global
+`0x1017ae98`; from the selected descriptor it reads the two-byte value at
+`+6` and a dword size at `+0x14`. The span pointer comes from the input object
+at `+0xa0`. It then dispatches on the two-byte value and may issue further
+writes. This is an observed descriptor-driven write sequence, not evidence
+that its output is a selector-`0x20` frame: no selected-record context,
+runtime dispatch or output was observed. The only direct call to this routine
+found in a module-wide disassembly is from forwarding routine `0x10015610`;
+it does not itself select a record before the shown writes. Indirect calls
+and other writers remain unexamined.
+In the module's static data, the forwarding routine's address is
+at `0x1016b830`, offset `0x9c` from table `0x1016b794`. The code at
+`0x10015520` writes that table pointer to global `0x1017aeb8`, and the
+exported `GetRFLInterface` at `0x10015650` returns that global's address.
+The module's process-attach path at `0x101592b0` calls `0x1015a6eb`;
+that routine walks the constructor-pointer range beginning at `0x10174000`,
+which contains pointer `0x10015510` at `0x10174028`. The latter jumps to
+`0x10015520`, installing the interface-table pointer on this static startup
+path. This supports the table setup as a registered initializer rather than
+an unreferenced function, but does not prove a runtime load occurred. The
+actual caller, selected record and file remain unknown. In the executable,
+`0x0040e113` makes an
+indirect slot-`0x9c` call using the pointer loaded from global `0x00483bf4`
+and passes the current `esi` value. At `0x00437b74–0x00437be9`, a separate
+path passes the loaded module handle and the string `GetRFLInterface` to
+`GetProcAddress`, calls the returned pointer if non-null, and stores its
+return in that global. If the handle identifies the hash-pinned module and
+its table initialization is in effect, this connects the indirect call to
+the raw-write forwarding entry. Module selection, execution order, mutations,
+selected record and actual dispatch remain unverified.
+
+Reproduction:
+
+```sh
+sha256sum research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x10016a80 --stop-address=0x10016c10 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel research/installed/us/English_-_Program_Files/Dragon.rfl | rg 'call[[:space:]]+0x10016a80'
+objdump -d -Mintel --start-address=0x10015520 --stop-address=0x10015660 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x101592b0 --stop-address=0x10159405 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x1015a6eb --stop-address=0x1015a7eb research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -s --start-address=0x10174000 --stop-address=0x10174030 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x40e0f0 --stop-address=0x40e145 research/binaries/us/Drakan.exe
+```
+
+## RFL module-selection path, 2026-10-19
+
+The interface lookup is part of a generic loader, not a hard-coded
+`Dragon.rfl` load. In the hash-pinned executable, `0x00437ab0` accepts a
+caller-provided string buffer; an empty string branches to its dialog path,
+while the nonempty path reaches helper `0x00411c00`. That helper calls
+`LoadLibraryA` through IAT slot `0x00475098`, resolves `GetRFLInterface`
+through `GetProcAddress` at `0x00437b74`–`0x00437b80`, invokes the export if
+found, and accepts only return values `0x101` or `0x80000101`; otherwise it
+frees the module. This is consistent with a versioned plugin/interface
+loader, but does not identify which module was loaded in any particular run.
+
+One observed caller at `0x00407906` passes the address `0x00483bf8`. Earlier
+in the same initialization path, `0x004078e8`–`0x004078fb` calls
+`LoadStringA` (IAT slot `0x00475218`) with resource ID 5 and that destination
+buffer. The raw string-table block shows resource ID 3 is the filter
+`Riot Function Libraries (*.rfl)|*.rfl|All Files|*.*|`; ID 4 is
+`Riot Engine Options\nDragon.rfl`; ID 5 is empty. In the observed flow, an
+empty input branches to the dialog path, whose helper at `0x00437c10` loads
+ID 3 and passes a `0x100`-byte filename buffer through the common-dialog
+path; its open branch at `0x004654ae` jumps to imported `GetOpenFileNameA`.
+The dialog writes a selected path to the caller-provided filename buffer,
+which is then used in the loader retry path. This establishes a user-selected
+module path through an RFL-filtered dialog in this UI branch, but not which
+file was selected in any particular run. Because the filter also offers
+`All Files`, it does not enforce the extension. `Dragon.rfl` is present in
+an adjacent UI string, not proven to be the selected filename. The separate
+call at `0x0040e113` only proves that another routine dispatches slot `0x9c` through
+the global interface pointer; static evidence does not connect that call's
+runtime state to this particular load or selected filename. Therefore the
+`Dragon.rfl` raw-write entry remains a plausible, structurally matching
+candidate, not an established producer of the sampled selector-`0x20`
+frames. The subsequent writer-context trace below narrows this candidate to
+a conditional `0x0102` writer path.
+
+Reproduction against the same pinned executable:
+
+```sh
+objdump -d -Mintel --start-address=0x437ab0 --stop-address=0x437bf5 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x411c00 --stop-address=0x411c65 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x407780 --stop-address=0x407935 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x437c10 --stop-address=0x437d97 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x4654ae --stop-address=0x4654b4 research/binaries/us/Drakan.exe
+objdump -p research/binaries/us/Drakan.exe
+wrestool -l research/binaries/us/Drakan.exe
+wrestool -x -t 6 -n 1 -L 1033 -R research/binaries/us/Drakan.exe | od -Ax -tx1z
+```
+
+## Module write context, 2026-10-19
+
+**Observed, static:** on the same hash-pinned US executable and RFL, the
+enclosing executable writer `0x0040b4d0` passes its local writer address to
+interface slot `+0x90` at `0x0040b9ff`. The pinned RFL's table at
+`0x1016b794` has `0x100155b0` at that slot; this function stores the argument
+at `0x1017af70`. Its `+0x9c` entry `0x10015610` passes that same global's
+address to `0x10016a80`, whose first field is used as the writer pointer by
+the raw-write helper. The executable later passes the same local writer to
+slot `+0x34` at `0x0040ba8e`. Its candidate implementation `0x0040dd30`
+initializes first selector `0x0102` and a dynamic second selector, then calls
+interface slot `+0x9c` at `0x0040e113` before calling the record-finalization
+helper at `0x0040e134`.
+
+**Inference:** if the pinned module and candidate executable table are both
+active, the stored pointer is unchanged, the initializer succeeds, and
+intervening calls do not change the writer's selected record or position,
+the module's writes target that `0x0102` record. The module's initial
+descriptor-derived word and byte span therefore have a concrete alternative
+context to the level frame hypothesis. The observed two write requests alone
+do not establish the level frame's four-byte prefix and length-prefixed body.
+Neither successful writes nor output bytes were observed; the executable's
+fixed-width `0x0102` writer also differs from the sampled length-prefixed
+reader, as described in [the writer comparison](srsc-writer-third-state.md#follow-up-the-0x0102-writer-is-a-separate-candidate).
+Module selection, indirect dispatch, intervening mutations, producer identity,
+and any other writer paths remain unknown. Confidence is high for the static
+instructions, conditional for their association, and limited to these inputs.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump --version | head -1
+objdump -d -Mintel --start-address=0x40b9f2 --stop-address=0x40baab research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x40dd30 --stop-address=0x40dd72 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x40e0f0 --stop-address=0x40e139 research/binaries/us/Drakan.exe
+objdump -s --start-address=0x1016b820 --stop-address=0x1016b838 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x100155b0 --stop-address=0x100155bc research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x10015610 --stop-address=0x10015622 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x10016a80 --stop-address=0x10016ad7 research/installed/us/English_-_Program_Files/Dragon.rfl
+```
+
+The corresponding level frames also match a subset of these `0x0102` frames
+byte-for-byte under candidate file joins; see
+[the level comparison](level-entry-caller-followup.md#frame-text-and-candidate-0x0102-comparison-2026-10-19).
+Confidence is high for the measured US snapshots, not for runtime use,
+producer identity, other editions or a universal grammar. The traced retail
+consumer does not consume this tail on its success path. This sample result
+does not change the production reader's opaque-tail policy.
+
+```sh
+python3 tools/research/measure_0102_metadata_frames.py research/installed/us research/exports/srsc-records/us.json research/installed/us/English_-_Program_Files/Dragon.rfl
+python3 -m unittest discover -s tools/research -p 'test_measure_0102_metadata_frames.py' -v
+sha256sum research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x45f750 --stop-address=0x45f799 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x40b591 --stop-address=0x40b5fb research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x40e150 --stop-address=0x40e2f3 research/binaries/us/Drakan.exe
+objdump -d -Mintel research/binaries/us/Drakan.exe | rg 'call[[:space:]]+0x45f750'
+objdump -d -Mintel --start-address=0x10016110 --stop-address=0x1001614a research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x101562f0 --stop-address=0x10156489 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel research/installed/us/English_-_Program_Files/Dragon.rfl | rg 'call[[:space:]]+0x10156440'
+objdump -d -Mintel research/installed/us/English_-_Program_Files/Dragon.rfl | rg -B 3 'call[[:space:]]+0x101562f0'
+objdump -d -Mintel --start-address=0x10015610 --stop-address=0x10015622 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x10016a80 --stop-address=0x10016ad7 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x10015520 --stop-address=0x1001552b research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x10015650 --stop-address=0x10015656 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -s --start-address=0x1016b7f0 --stop-address=0x1016b850 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -p research/installed/us/English_-_Program_Files/Dragon.rfl | rg -A 5 'Ordinal/Name Pointer'
+objdump -d -Mintel --start-address=0x40e0ff --stop-address=0x40e119 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x437b33 --stop-address=0x437bf4 research/binaries/us/Drakan.exe
+objdump -s --start-address=0x47d3cc --stop-address=0x47d3e0 research/binaries/us/Drakan.exe
+objdump -p research/binaries/us/Drakan.exe | rg -B 1 -A 1 'GetProcAddress|LoadLibraryA'
+PYTHONPATH=tools/research python3 -c 'import json; from pathlib import Path; from collections import Counter; from measure_0102_model_candidates import table; from measure_srsc_prefix_selector import read_verified; root=Path("research/installed/us").resolve(strict=True); items=json.loads(Path("research/exports/srsc-records/us.json").read_text())["files"]; totals=Counter(); files=Counter();
+for item in items:
+ data=read_verified(root,item); _, records=table(data); matches=[(a,b) for a,b,c,d,e in records if a==0x401 and b in (0x37b,0x37d)]; totals.update(matches); files.update(set(matches))
+print("files checked:",len(items)); print("selector counts:",dict(totals)); print("files containing:",dict(files))'
+```
+
+The five targeted synthetic tail tests and all 190 research tests passed on
+2026-10-19. Synthetic tests exercise exact and trailing data, truncation,
+metadata selection, raw-body variants and the even-byte comparison rule.

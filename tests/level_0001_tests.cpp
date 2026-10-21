@@ -6,6 +6,7 @@
 #include <iostream>
 #include <span>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 int main() {
@@ -28,12 +29,55 @@ int main() {
     put(payload, 999); // traced raw branch ignores this word
     payload.insert(payload.end(), {B{1}, B{2}, B{3}, B{4}});
     payload.push_back(B{42}); // opaque tail
+    auto prefix_payload = payload;
+    prefix_payload[4] = B{0x78}; prefix_payload[5] = B{0x56};
+    prefix_payload[6] = B{0x34}; prefix_payload[7] = B{0x92};
+    prefix_payload[16] = B{0x55};
+    prefix_payload[35] = B{0xab}; // first dword following the byte sequence
+    std::vector<dragonrider::assets::riot::Level0001EntryPrefix> prefixes;
+    const auto save_prefix = [&](const auto& prefix) { prefixes.push_back(prefix); };
+    (void)inspect_level_0001(prefix_payload, 1, 2, 4, 4, {}, {}, {}, {}, save_prefix);
+    check(prefixes.size() == 1 && prefixes[0].entry_index == 0 &&
+          prefixes[0].before_bytes[0] == 0x92345678 && prefixes[0].before_bytes[3] == 0x55 &&
+          prefixes[0].bytes.size() == 1 && prefixes[0].bytes[0] == B{0xff} &&
+          prefixes[0].after_bytes[0] == 0xab && prefixes[0].inner_count == 2,
+          "raw entry prefix fields and byte view");
+    auto truncated_prefix = prefix_payload;
+    truncated_prefix.resize(67); // one of the inner dwords is truncated
+    prefixes.clear();
+    try { (void)inspect_level_0001(truncated_prefix, 1, 2, 4, 4, {}, {}, {}, {}, save_prefix); }
+    catch (const std::out_of_range&) {}
+    check(prefixes.empty(), "entry callback waits for complete inner array");
+    auto later_failure = prefix_payload;
+    later_failure[later_failure.size() - 13] = B{2};
+    bool prefix_later_failure = false;
+    try { (void)inspect_level_0001(later_failure, 1, 2, 4, 4, {}, {}, {}, {}, save_prefix); }
+    catch (const std::invalid_argument&) { prefix_later_failure = true; }
+    check(prefix_later_failure && prefixes.size() == 1,
+          "entry callback results must be discarded after later failure");
     auto result = inspect_level_0001(payload, 1, 2, 4, 4);
     check(result.entries == 1 && result.inner_values == 2 && result.storage_word == 0 &&
           result.decoded_bytes == 4 && result.decoded_crc32 == 0xb63cfbcd &&
           result.data_end == payload.size() - 1 && result.grid_items == 1 &&
           result.minimum_transformed_word == -63482 && result.maximum_transformed_word == -63482,
           "raw record, transformed word and tail");
+    std::vector<std::pair<std::size_t, std::uint32_t>> inner_values;
+    const auto raw_inner = [&](std::size_t index, std::uint32_t value) {
+        inner_values.emplace_back(index, value);
+    };
+    (void)inspect_level_0001(payload, 1, 2, 4, 4, {}, {}, {}, raw_inner);
+    check(inner_values == std::vector<std::pair<std::size_t, std::uint32_t>>{{0, 0}, {0, 9}},
+          "inner callbacks preserve raw values and owning entry");
+    auto high_inner = payload;
+    high_inner[65] = B{1}; // high half of first inner dword
+    inner_values.clear();
+    (void)inspect_level_0001(high_inner, 1, 2, 4, 4, {}, {}, {}, raw_inner);
+    check(inner_values.size() == 2 && inner_values[0].second == 0x00010000, "inner callback preserves high bits");
+    inner_values.clear();
+    bool truncated_inner_rejected = false;
+    try { (void)inspect_level_0001(std::span(payload).first(70), 1, 2, 4, 4, {}, {}, {}, raw_inner); }
+    catch (const std::exception&) { truncated_inner_rejected = true; }
+    check(truncated_inner_rejected && inner_values.empty(), "truncated inner array emits no partial entry callbacks");
     for (std::size_t n = 0; n < payload.size() - 1; ++n) {
         try { (void)inspect_level_0001(std::span(payload).first(n), 1, 2, 4, 4); check(false, "truncation accepted"); }
         catch (const std::exception&) {}
@@ -91,6 +135,11 @@ int main() {
         catch (const std::runtime_error&) {}
     }
     auto unsupported = payload; unsupported[storage_offset] = B{2};
+    inner_values.clear();
+    bool later_error = false;
+    try { (void)inspect_level_0001(unsupported, 1, 2, 4, 4, {}, {}, {}, raw_inner); }
+    catch (const std::invalid_argument&) { later_error = true; }
+    check(later_error && inner_values.size() == 2, "later validation failure leaves partial callback results");
     try { (void)inspect_level_0001(unsupported, 1, 2, 4, 4); check(false, "storage word accepted"); }
     catch (const std::invalid_argument&) {}
     std::vector<B> empty(8);

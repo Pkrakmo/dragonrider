@@ -39,6 +39,82 @@
 - **Unknown:** no reliable evidence.
 
 ## Current observations
+- **Observed and inferred (2026-10-19):** a `0x0302` new-object path builds a
+  candidate waveform-format structure and passes it through a conditional
+  buffer-creation interface. All 1,561 sampled records have values consistent
+  with mono 8- or 16-bit waveform data at three sample rates, and their sizes
+  align to the derived frame size. Actual runtime dispatch and playback are
+  unverified; see [the trace](research/srsc-0302-selector-followup.md#candidate-waveform-format-and-buffer-path-2026-10-19).
+- **Measured (2026-10-19):** the candidate level-object/`0x0102` joins that
+  yield matching frame text do not yield generally equal neighboring array
+  units. Under the overlay hypothesis, 1,754 of 13,418 compared pairs match,
+  including 944 zero pairs. Conditional ranges and runtime selection remain
+  unresolved; see [the bounded comparison](research/level-entry-caller-followup.md#candidate-array-value-comparison-2026-10-19).
+- **Observed, static (2026-10-19):** the candidate RFL raw-write forwarder
+  can receive the same writer pointer used by an executable `0x0102` writer,
+  under the documented interface-table and unchanged-state assumptions.
+  The resulting file and actual dispatch remain unknown; see [the writer
+  context](research/srsc-0102-runtime.md#module-write-context-2026-10-19).
+- **Measured (2026-10-19):** within the 87,527 Europe track-8 frames aligned
+  to the US zero tail, 100 ms stereo RMS windows decrease in 18 of 19
+  transitions, with one increase; first/last window RMS is 1,599.635/200.996.
+  This indicates a broad decline in the measured envelope, not a conclusion
+  about audibility, music or mastering; see the [track-8 note](research/audio-track8-tail.md#short-window-rms-envelope-2026-10-19).
+- **Measured (2026-10-19):** a fresh hash inventory exactly matches the
+  private 337-file US installed-tree manifest, including 178 SRSC candidates
+  with tables ending at EOF. `file` identifies the three `.lfl` files and one
+  `.mpl` as ASCII, one `.pal` as RIFF `PAL `, and 21 PE32 executables/DLLs/
+  OCXs in the separate Mplayer extraction group. The palette has unexplained
+  chunk bytes under a four-byte-entry calculation; runtime use, software
+  provenance and other editions remain unknown; see the
+  [retail inventory](research/retail-asset-inventory.md).
+- **Measured (2026-10-19):** 13,418 level frames match indexed candidate
+  `0x0102` frames byte-for-byte under an installer-overlay hypothesis, and
+  match descriptor flags and descriptor-relative text in the pinned RFL.
+  Separately, all 4,203 sampled `0x0102` tails fit a descriptor-count frame
+  model and all 77,772 frame flags and text match the candidate descriptors.
+  Producer, text meaning and runtime source association remain unknown; see
+  [level frames](research/level-entry-caller-followup.md#frame-text-and-candidate-0x0102-comparison-2026-10-19)
+  and [0x0102 tails](research/srsc-0102-runtime.md#metadata-frame-tail-comparison-2026-10-19).
+- **Observed, static (2026-10-19):** the retail executable exposes an
+  RFL-filtered file dialog and resolves `GetRFLInterface`; the pinned
+  `Dragon.rfl` has a matching slot-`0x9c` raw-write forwarder. Its candidate
+  writer selects a descriptor from the input object's word at `+2`, then
+  writes a descriptor-derived 16-bit value and a byte span pointed to by
+  object `+0xa0`; its static process-attach path walks an initializer table
+  containing the interface-table installer, and its only found direct caller
+  is the slot-`0x9c` forwarder. No runtime module selection, selected record
+  or relationship to selector-`0x20` frames is established;
+  see the [bounded interface and
+  writer trace](research/srsc-0102-runtime.md#rfl-module-selection-path-2026-10-19).
+- **Observed (2026-10-19):** one conditional level-object helper searches a
+  word array by value and uses its first matching position to address a
+  separate dword array on a selected path. In 5,384 sampled objects the word
+  count never exceeds the dword count, but 5,684 word values exceed or equal
+  that count. Runtime dispatch and semantics remain unknown; see [the trace](research/level-entry-caller-followup.md#conditional-word-array-lookup-2026-10-19).
+- **Measured (2026-10-19):** with an installer-overlay assumption, each of
+  5,384 array-bearing level objects has a unique candidate `0x0102` and RFL
+  metadata entry; all 13,418 word indices fit and the skipped frame prefixes
+  equal their candidate descriptor flags. Candidate flagged and type-10
+  spans cover all 1,145 extra array units without overlap. Runtime joins and
+  frame semantics remain unknown; see [the comparison](research/level-entry-caller-followup.md#metadata-and-conditional-array-candidates-2026-10-19).
+- **Observed (2026-10-19):** conditional selector `(0x20,0,0)` framing fits
+  all 16,312 declared objects in 23 hashed US levels. Of their third dwords,
+  834 match a same-file level entry and 16 nonzero values do not; all 16 occur
+  in other sampled levels. The 5,909 candidate object-index words are in
+  range, but most directed relations have no reverse. Runtime associations
+  remain unverified; see [the object trace](research/level-entry-caller-followup.md#conditional-full-object-framing-2026-10-19).
+- **Measured (2026-10-19):** hypothetical cached-object `0x0302` offsets
+  yield nonzero modes and zero- or one-byte stored inputs for all 1,561 sampled
+  records. The branch's actual cache state and processing remain unknown; see
+  [the cached-path comparison](research/srsc-0302-selector-followup.md#cached-object-offset-comparison-2026-10-19).
+- **Observed (2026-10-19):** one `0x0302` consumer has different new-object and cached-object read offsets; 1,561 sampled records fit the hypothetical new-object framing, and all 390 nonzero spans decoded as complete zlib streams to the indicated size. Runtime state and decoded meaning remain open; see [the selector follow-up](research/srsc-0302-selector-followup.md).
+- **Observed (2026-10-19):** a selector `(0x20,0,0)` object value is looked up against level entry first dwords, with conditional later use of the index; sampled first objects do not establish full framing. See [the caller trace](research/level-entry-caller-followup.md).
+- **Measured (2026-10-19):** 35 of 41 type-12 candidate ranges match a unique level under both numeric and direct lexical-source comparisons; six do not. The overlay hypothesis yields 35 unique, one multiple and five none. Runtime associations remain unverified; see [the comparison](research/level-0001-prefix.md#directory-name-comparison-for-type-12-candidate-ranges-2026-10-19).
+- **Observed (2026-10-19):** a retail helper finds the first level entry whose first dword matches its argument. Across 41 sampled type-12 candidate ranges, all values have a common matching level, but 20 ranges have multiple common levels. Runtime association remains unknown; see [first-dword lookup](research/level-0001-prefix.md#first-dword-lookup-and-type-12-candidates-2026-10-19).
+- **Observed (2026-10-19):** each of 4,445 US level entries contains its own index once among 207,353 raw inner values. Static code records the self position and first and last strictly overlapping candidates; sampled overlapping positions are not always contiguous. Runtime meaning remains unresolved; see [level inner-value relations](research/level-0001-prefix.md#inner-value-consumer-and-sample-relations-2026-10-19).
+- **Observed (2026-10-19):** six static loader stages select `(0x0402,0,0)` and compare stage-specific dwords; all 153 US inventory files in their corresponding suffix groups have one gate with the matching value. Runtime source paths and pointer aliasing remain unknown; see [the stage trace](research/srsc-0102-runtime.md#remaining-source-object-loader-stages-2026-10-19).
+- **Observed (2026-10-19):** in 4,185 nonempty sampled `0x0102` tails, a candidate 16-bit length including the following two bytes fits in every record, but two simple count models explain only one complete tail each. The actual grammar remains unknown; see [tail framing hypotheses](research/srsc-0102-runtime.md#tail-framing-hypotheses-2026-10-19).
 - **Observed (2026-10-18):** a direct retail `0x0102` writer has a fixed-width
   136-byte initial sequence, while the sampled `.odb` reader uses a
   length-prefixed payload layout. Of 4,203 hash-verified US records, 136 are

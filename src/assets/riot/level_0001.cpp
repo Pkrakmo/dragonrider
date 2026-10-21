@@ -145,7 +145,9 @@ Level0001Summary inspect_level_0001(std::span<const std::byte> payload,
                                     std::size_t max_block_bytes, std::size_t max_total_decoded_bytes,
                                     const std::function<void(std::uint32_t, std::uint32_t)>& on_cell,
                                     const std::function<void(const Level0001GridPoint&)>& on_grid,
-                                    const std::function<void(const Level0001Cell&)>& on_cell_detail) {
+                                    const std::function<void(const Level0001Cell&)>& on_cell_detail,
+                                    const std::function<void(std::size_t, std::uint32_t)>& on_inner_value,
+                                    const std::function<void(const Level0001EntryPrefix&)>& on_entry_prefix) {
     BinaryReader reader(payload);
     const auto count = reader.read_u32(little);
     if (count > static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()))
@@ -157,7 +159,7 @@ Level0001Summary inspect_level_0001(std::span<const std::byte> payload,
     sizes.reserve(count);
     std::size_t total = 0, inner_total = 0;
     for (std::uint32_t i = 0; i < count; ++i) {
-        (void)reader.read_u32(little);
+        const auto first = reader.read_u32(little);
         const auto width = reader.read_u32(little);
         const auto height = reader.read_u32(little);
         if (width > static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()) ||
@@ -172,20 +174,32 @@ Level0001Summary inspect_level_0001(std::span<const std::byte> payload,
         if (size > max_block_bytes) throw std::length_error("level block exceeds decoded limit");
         total = checked_sum(total, size);
         if (total > max_total_decoded_bytes) throw std::length_error("level blocks exceed total decoded limit");
-        (void)reader.read_u32(little);
+        const auto fourth = reader.read_u32(little);
         const auto origin_first = std::bit_cast<std::int32_t>(reader.read_u32(little));
         const auto origin_second = std::bit_cast<std::int32_t>(reader.read_u32(little));
         const auto base_bits = reader.read_u32(little);
         sizes.push_back({size, grid_bytes, {i, width, height, 0, 0, origin_first, origin_second, base_bits, 0, 0}});
         const auto name_size = reader.read_u16(little);
-        reader.skip(name_size);
-        reader.skip(24);
+        const auto name_bytes = reader.read_bytes(name_size);
+        std::array<std::uint32_t, 6> after_bytes{};
+        for (auto& value : after_bytes) value = reader.read_u32(little);
         const auto inner = reader.read_u32(little);
         if (inner > static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()))
             throw std::invalid_argument("level inner count is negative");
         if (inner > max_inner_per_entry) throw std::length_error("level inner count exceeds limit");
         inner_total = checked_sum(inner_total, inner);
-        reader.skip(BinaryReader::checked_product(inner, 4));
+        const auto inner_bytes = reader.read_bytes(BinaryReader::checked_product(inner, 4));
+        if (on_entry_prefix) {
+            on_entry_prefix({i, {first, width, height, fourth,
+                                 std::bit_cast<std::uint32_t>(origin_first),
+                                 std::bit_cast<std::uint32_t>(origin_second), base_bits},
+                             name_bytes, after_bytes, inner});
+        }
+        if (on_inner_value) {
+            BinaryReader inner_reader(inner_bytes);
+            for (std::uint32_t j = 0; j < inner; ++j)
+                on_inner_value(i, inner_reader.read_u32(little));
+        }
     }
     const auto storage = reader.read_u32(little);
     if (storage != 0 && storage != 1) throw std::invalid_argument("unsupported level storage word");

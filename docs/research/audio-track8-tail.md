@@ -88,3 +88,69 @@ long silent suffixes, different leading-zero runs and invalid offsets. The
 script processes comparisons in bounded chunks and memory-maps inputs read-only. Redirect only to a private
 output path; shell redirection is not protected by the script against an
 operator choosing an input as output.
+
+
+## Cutoff transition, 2026-10-19
+
+**Observed:** the same two CUE/BIN sets were read with Python 3.14.7 and
+NumPy 2.3.5, using the previously measured +673-frame alignment and the
+verified track 8 hashes in [the comparison](cd-audio-comparison.md). At the
+first US zero-tail frame, the absolute change from the previous sample is
+491 and 1,089 in the two signed-16-bit channels. The corresponding Europe
+changes are 12 and 2. In the preceding 44,100 within-channel steps, US changes
+at least as large as its cutoff change occur 575 and six times respectively;
+the aligned Europe counts relative to its own cutoff changes are 36,893 and
+43,133. All 44,101 aligned frames used to calculate those preceding steps
+match between images. These rankings compare sample differences, not perceived
+loudness or click audibility. Endianness and channel interpretation follow the
+prior analysis; input hashes and the alignment do not establish rip fidelity,
+cause, mastering choices, or music content. The analysis reads files through
+read-only mappings, hashes them separately, and does not rule out concurrent
+modification between hashing and measurement. Confidence is high for the
+specified aligned sample snapshots, limited for acoustic interpretation.
+
+```sh
+python3 tools/research/test_audio_tail.py -v
+python3 tools/research/audio_tail_analysis.py \
+  'Drakan - Order of the Flame (USA)/Drakan - Order of the Flame (USA).cue' \
+  'Drakan - Order of the Flame (Europe)/Drakan - Order of the Flame (Europe).cue' \
+  > research/exports/audio-comparison/audio-tail-cutoff.json
+```
+
+The new report reproduced the earlier report’s CUE and track hashes, all
+track and boundary comparisons, and prior terminal metrics. The output contains
+private input paths and hashes, and is kept under ignored `research/`. The cutoff measurements are omitted if the zero-tail start is
+outside the available aligned overlap.
+
+## Short-window RMS envelope, 2026-10-19
+
+**Measured:** a separate read-only analysis of the same hash-verified US and
+Europe track 8 BINs used the assumed 673-frame alignment and began at the
+US's measured zero-tail start, file frame 9,478,560. It divided the 87,527
+aligned Europe frames into twenty non-overlapping windows of 4,410 frames
+(100 ms at 44,100 frames/s), with a 3,737-frame final window, then computed
+stereo RMS without normalization. The first window RMS is 1,599.635 and the
+last is 200.996; of the 19 adjacent-window transitions, 18 decrease and one
+increases. Thus the bounded result has a broadly lower short-window envelope
+toward the end, but it is not strictly monotonic and does not establish
+musical content, mastering intent, audible level or causal relationship to
+the US zero tail. The report contains paths and hashes but no samples; input
+files are memory-mapped read-only. Confidence is high for these supplied
+snapshots and this alignment assumption, not other pressings or rips. Window
+size is capped at 441,000 frames (ten seconds) to bound temporary arrays;
+hashing followed by mapping does not exclude concurrent file modification.
+The JSON output retains all twenty aggregate window RMS values, but no samples.
+
+The independent Python 3.14.7 / NumPy 2.3.5 measurement can be reproduced
+with:
+
+```sh
+python3 -m unittest discover -s tools/research -p 'test_measure_audio_tail_envelope.py' -v
+python3 tools/research/measure_audio_tail_envelope.py \
+  'Drakan - Order of the Flame (USA)/Drakan - Order of the Flame (USA).cue' \
+  'Drakan - Order of the Flame (Europe)/Drakan - Order of the Flame (Europe).cue'
+```
+
+The tool's three synthetic tests pass on 2026-10-19, including a temporary
+two-CUE/two-BIN fixture that checks the selected program tail and the output
+hash metadata. No original media are written.

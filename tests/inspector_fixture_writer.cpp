@@ -29,6 +29,47 @@ int main(int argc, char** argv) {
     write("record-0102-short.srsc", short0102);
     auto wrong0102 = record0102; wrong0102[28] = 3;
     write("record-0102-wrong.srsc", wrong0102);
+    // New-object 0x0302 frames for raw and nonzero storage branches.
+    auto make0302 = [&](unsigned mode) {
+        std::vector<unsigned char> bytes{'S','R','S','C',0,1,0,0,0,0,1,0, 2,0,'x','y'};
+        auto word0302 = [&](unsigned n) { bytes.push_back(n & 255); bytes.push_back((n >> 8) & 255); };
+        auto dword0302 = [&](unsigned n) { word0302(n & 65535); word0302(n >> 16); };
+        dword0302(0x12345678); word0302(1); word0302(2);
+        for (unsigned n : {3U, 4U, 5U, 6U, 3U}) dword0302(n);
+        dword0302(mode);
+        if (mode) dword0302(3);
+        bytes.insert(bytes.end(), {1,2,3});
+        auto table = static_cast<unsigned>(bytes.size()); bytes[6] = table;
+        word0302(0x302); word0302(0); word0302(0); dword0302(12); dword0302(table - 12);
+        return bytes;
+    };
+    auto record0302 = make0302(0); write("record-0302.srsc", record0302);
+    auto stored0302 = make0302(42); write("record-0302-stored.srsc", stored0302);
+    auto short0302 = record0302; short0302[short0302[6] + 10]--;
+    write("record-0302-short.srsc", short0302);
+    auto wrong0302 = record0302; wrong0302[wrong0302[6]] = 1;
+    write("record-0302-wrong.srsc", wrong0302);
+    // One empty-list object with no conditional arrays and an opaque tail.
+    std::vector<unsigned char> objects{'S','R','S','C',0,1,0,0,0,0,1,0, 1,0};
+    objects.insert(objects.end(), 28 + 2 + 2 + 6 + 8, 0);
+    objects.push_back(0xaa);
+    const auto objects_table = static_cast<unsigned char>(objects.size());
+    objects[6] = objects_table;
+    objects.insert(objects.end(), {0x20,0,0,0,0,0,12,0,0,0,
+                                   static_cast<unsigned char>(objects_table - 12),0,0,0});
+    write("level-objects.srsc", objects);
+    std::vector<unsigned char> object_arrays{'S','R','S','C',0,1,0,0,0,0,1,0, 1,0};
+    object_arrays.insert(object_arrays.end(), 28 + 2 + 2 + 6, 0);
+    object_arrays.insert(object_arrays.end(), {1,0,0,0, 1,0,0,0, 1,2,3,4, 5,6,
+                                                7,8,9,10, 2,0, 11,12});
+    const auto arrays_table = static_cast<unsigned char>(object_arrays.size());
+    object_arrays[6] = arrays_table;
+    object_arrays.insert(object_arrays.end(), {0x20,0,0,0,0,0,12,0,0,0,
+                                                static_cast<unsigned char>(arrays_table - 12),0,0,0});
+    write("level-objects-arrays.srsc", object_arrays);
+    auto short_objects = objects;
+    short_objects[objects_table + 10] -= 2;
+    write("level-objects-short.srsc", short_objects);
     // Complete conditional array framing with one opaque byte remaining.
     std::vector<unsigned char> array0102{'S','R','S','C',0,1,41,0,0,0,1,0,
         0,0, 0,0, 0,0,0,0, 0,0, 0,0,
@@ -99,6 +140,41 @@ int main(int argc, char** argv) {
     blocks.insert(blocks.end(), {1,0,0,0,0,0,12,0,0,0,
                                  static_cast<unsigned char>(blocks_table - 12),0,0,0});
     write("level-blocks.srsc", blocks);
+    auto links = blocks;
+    constexpr std::size_t inner_count_offset = 12 + 4 + 28 + 2 + 24;
+    links[inner_count_offset] = 3;
+    links.insert(links.begin() + inner_count_offset + 4,
+                 {0,0,0,0, 0,0,1,0, 4,0,0,0});
+    links[6] += 12;
+    links[blocks_table + 12 + 10] += 12;
+    write("level-links.srsc", links);
+    auto maximum_entry = links;
+    maximum_entry[16] = maximum_entry[17] = maximum_entry[18] = maximum_entry[19] = 0xff;
+    write("level-entry-maximum.srsc", maximum_entry);
+    // Three raw entries: first dwords 7, 9, 7. Each has an empty grid.
+    auto duplicate_entries = blocks;
+    constexpr std::size_t entry_start = 12 + 4;
+    constexpr std::size_t entry_size = 28 + 2 + 24 + 4;
+    std::vector<unsigned char> duplicate_prefix(blocks.begin() + entry_start,
+                                                 blocks.begin() + entry_start + entry_size);
+    duplicate_entries[12] = 3;
+    duplicate_entries[entry_start] = 7;
+    duplicate_prefix[0] = 9;
+    duplicate_entries.insert(duplicate_entries.begin() + entry_start + entry_size,
+                             duplicate_prefix.begin(), duplicate_prefix.end());
+    duplicate_prefix[0] = 7;
+    duplicate_entries.insert(duplicate_entries.begin() + entry_start + 2 * entry_size,
+                             duplicate_prefix.begin(), duplicate_prefix.end());
+    const auto duplicate_blocks_end = blocks_table + 2 * entry_size;
+    duplicate_entries.insert(duplicate_entries.begin() + duplicate_blocks_end,
+                             {4,0,0,0, 1,2,3,4, 4,0,0,0, 1,2,3,4});
+    const auto duplicate_table = duplicate_blocks_end + 16;
+    duplicate_entries[6] = static_cast<unsigned char>(duplicate_table);
+    duplicate_entries[duplicate_table + 10] = static_cast<unsigned char>(duplicate_table - 12);
+    write("level-entry-duplicates.srsc", duplicate_entries);
+    const std::vector<unsigned char> empty_links{'S','R','S','C',0,1,20,0,0,0,1,0,
+        0,0,0,0, 0,0,0,0, 1,0,0,0,0,0, 12,0,0,0, 8,0,0,0};
+    write("level-links-empty.srsc", empty_links);
     auto bad_blocks = blocks; bad_blocks[blocks_table + 10]--;
     write("level-blocks-short.srsc", bad_blocks);
     // Synthetic directory and 2x2 cell grid exercising all source-ID categories.

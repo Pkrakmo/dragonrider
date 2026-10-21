@@ -10,16 +10,21 @@ The project/repository is `DragonRider`; C++ namespace and public include prefix
 ## Dependency boundaries
 - `core`: checked binary reads, diagnostics, identity, errors.
 - `assets/riot`: importer of **validated** Drakan formats into neutral assets; depends on core, not rendering/gameplay.
+- SRSC lookup uses an explicitly chosen record order and preserves original indices; see [ADR 0021](decisions/0021-srsc-record-lookup.md).
 - The texture base-row reader uses system zlib through CMake; no zlib source is bundled. Its API does not expose Ghidra, rendering, or pixel-layout assumptions.
 - Indexed row diagnostics compare explicitly supplied rows and palette sizes without choosing a runtime association; see [ADR 0007](decisions/0007-indexed-texture-diagnostics.md).
 - `assets`: source provenance, logical IDs, caches.
 - Physical manifests preserve caller-supplied edition and container provenance separately from future logical IDs; see [ADR 0008](decisions/0008-physical-asset-manifests.md).
 - The level database-list reader preserves untrusted raw names without resolving paths; see [ADR 0009](decisions/0009-level-directory-inspection.md).
 - The restricted database descriptor reader preserves untrusted names and does not resolve them; see [ADR 0016](decisions/0016-database-descriptor-inspection.md).
+- The `0x0302` new-object structural reader returns input-backed spans without decoding or modeling cache state; see [ADR 0024](decisions/0024-srsc-0302-new-object-diagnostic.md).
 - The `0x0102` prefix and array readers expose bounded raw fields without resolving embedded references; see [ADR 0019](decisions/0019-srsc-0102-prefix-inspection.md) and [ADR 0020](decisions/0020-srsc-0102-array-inspection.md).
 - Model point and group readers preserve raw words with explicit bounds and no renderer assumptions; see [ADR 0018](decisions/0018-model-geometry-inspection.md).
 - The `(1,0,0)` level block diagnostic validates bounded raw or zlib data without interpreting it as geometry; see [ADR 0011](decisions/0011-level-block-inspection.md).
 - Grid callbacks expose raw level observations and nominal ranges without producing meshes; see [ADR 0014](decisions/0014-level-grid-diagnostic.md).
+- Level inner-value callbacks preserve raw words without resolving candidate links; see [ADR 0022](decisions/0022-level-inner-value-diagnostic.md).
+- Level entry-prefix callbacks retain raw fields and an input-backed byte view; the inspector can compare the first field in file order without resolving runtime objects. See [ADR 0023](decisions/0023-level-entry-prefix-diagnostic.md).
+- The conditional level-object reader exposes raw fields and input-backed index words without resolving object handles; see [ADR 0025](decisions/0025-level-object-framing.md).
 - Cell callbacks and explicitly selected candidate point ordering remain bounded diagnostics, not a renderer or mesh; see [ADR 0015](decisions/0015-level-cell-candidates.md).
 - Cell corner word associations expose integer observations without resolving textures or simulating submission; see [ADR 0017](decisions/0017-level-corner-word-diagnostic.md).
 - Level source-ID diagnostics compare explicitly selected records without opening or resolving paths; see [ADR 0012](decisions/0012-level-source-id-diagnostic.md).
