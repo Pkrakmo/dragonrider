@@ -43,6 +43,12 @@ Use the Codex runtime's **actual available** subagent/delegation features, only 
 - Integrate work only after reviewing evidence and running appropriate tests; resolve conflicting findings explicitly.
 - If subagents are unavailable, proceed sequentially without pretending delegation occurred.
 
+### Cross-host collaboration
+- Give each contributor exclusive ownership of each changed file. The Fedora maintainer owns `TODO.md`, shared architecture documents, and integration into `main`.
+- Each contributor uses an independently owned local Ghidra project. Never share, synchronize, or concurrently open a writable Ghidra database.
+- Treat original executable output as evidence, not source to copy. Do not copy unreviewed decompilation or third-party implementation code into DragonRider.
+- Do not push, merge, rewrite history, or change repository access automatically. The Fedora maintainer reviews research evidence and controls integration.
+
 ## Engineering rules
 - Use C++20, CMake, Ninja, GCC and CTest on Fedora Linux; Clang is an optional secondary compiler. Do not add Windows CI, configure MSVC, or implement Windows-specific support unless explicitly requested. See `docs/CI.md`.
 - Validate workflow changes with actionlint. For local `act` runs, review an isolated source snapshot and keep original media, private research and the container-engine socket out of job containers; follow `docs/CI.md`.
