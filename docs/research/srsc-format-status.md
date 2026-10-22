@@ -30,9 +30,12 @@ input limit. Size changes during inspection are detected; unchanged-size
 concurrent modifications are not guaranteed to be detected.
 
 The opt-in `--record-0302-new INDEX FILE` diagnostic reads one selected
-hypothetical new-object framing under bounded record and body limits. It
-reports raw field and span summaries without decoding the body or deciding
-runtime cache state; the cached-object path differs. See [ADR 0024](../decisions/0024-srsc-0302-new-object-diagnostic.md).
+hypothetical new-object framing under bounded record and body limits. Its
+separate `--record-0302-new-decoded INDEX FILE` mode copies a zero-mode body
+or requires a nonzero-mode body to be one exact zlib stream of the declared
+size, then reports only byte count and CRC32. Neither mode decides runtime
+cache state, labels decoded bytes, or exports them; the cached-object path
+differs. See [ADR 0024](../decisions/0024-srsc-0302-new-object-diagnostic.md).
 
 The opt-in `--level-objects INDEX FILE` diagnostic validates conditional
 framing for one explicitly selected `(0x20,0,0)` record and reports aggregate

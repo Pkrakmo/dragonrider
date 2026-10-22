@@ -75,6 +75,8 @@ actually used. No executable was run.
 The remaining non-SRSC extensions are `.csv` (2), `.dat` (1), `.htm` (4),
 `.ico` (2), `.ini` (2), `.lfl` (3), `.log` (1), `.mpi` (1), `.mpl` (1),
 `.pal` (1), `.rfl` (1), `.tln` (1), `.txt` (1), and `.url` (1).
+The `.db` descriptor trace and its bounded inspector comparison are recorded
+in [database descriptor observations](database-descriptors.md).
 
 `file` 5.46 identified program file `Dragon.rfl` as a PE32 i386 DLL; its
 SHA-256 is `9b6496b65e962cf35dd1e18f424f2c8af08ceade78331dcc0b6da332ce844ac3`.
@@ -116,6 +118,42 @@ The original files were not modified.
 These observations classify bytes and file contents only: they do not show
 which files the game loads, the purpose of the text documents, or how the
 palette is consumed. Other editions and extraction completeness remain open.
+
+On 2026-10-21, bounded inspection of the two remaining generic-data files
+confirmed their manifest sizes and SHA-256 values above. `mpdrakan.mpi` has a
+zero-heavy prefix and NUL-padded printable fields beginning at offset `0x10`;
+one field is endpoint-shaped and another is key/value-shaped. `drakan.tln` is
+32 bytes and has no recognized signature in the checked bytes; `strings` finds
+only a short printable run. These byte observations are consistent with the
+existing `file` classifications but do not establish either format, prove
+that the `.mpi` fields are read or used as network settings, or show that the
+game contacts any endpoint. No file was executed and no network operation was
+attempted. The files remain unidentified at the format and runtime levels.
+
+A printable-string scan of the hash-identified US retail executable found no
+literal `.mpi`, `mpdrakan`, `.tln`, `drakan.tln`, or `.db` string. Its import
+table does include `CreateFileA`, but that generic API does not identify which
+files are opened. This bounded non-match cannot rule out constructed names,
+indirect file access, optional modules, or use by another executable.
+GNU `strings` and `objdump` 2.45.1-5.fc43 were used; the executable SHA-256
+is recorded in the research baseline and was rechecked for this scan.
+
+Reproduce the bounded observations without printing the full `.mpi` strings:
+
+```sh
+sha256sum research/installed/us/English_-_Multi-Player_Data_Files/System/mpdrakan.mpi \
+  research/installed/us/English_-_Common_Data_Files/System/drakan.tln
+od -Ax -tx1z -N64 research/installed/us/English_-_Multi-Player_Data_Files/System/mpdrakan.mpi
+od -Ax -tx1z research/installed/us/English_-_Common_Data_Files/System/drakan.tln
+strings -a -t x -n 4 research/installed/us/English_-_Multi-Player_Data_Files/System/mpdrakan.mpi | awk '{ offset = $1; $1 = ""; value = substr($0, 2); kind = value ~ /tcp\// ? "endpoint-shaped" : value ~ /=/ ? "key-value-shaped" : "other"; print offset, kind }'
+strings -a -t x -n 3 research/installed/us/English_-_Common_Data_Files/System/drakan.tln | awk '{ print $1, length($0) - length($1) - 1, "printable-bytes" }'
+if strings -a -t x research/binaries/us/Drakan.exe | rg -i '\.mpi|mpdrakan|\.tln|drakan\.tln|\.db'; then
+  :
+else
+  echo 'No matching literal in printable strings'
+fi
+objdump -p research/binaries/us/Drakan.exe | rg 'CreateFileA'
+```
 
 To reproduce the inventory and aggregate checks without publishing it:
 
@@ -176,7 +214,7 @@ manifest = json.loads(pathlib.Path('research/exports/asset-inventory/us.json').r
 entries = [f for f in manifest['files'] if 'candidate_table' in f]
 failures = []
 for entry in entries:
-    result = subprocess.run(['build/dragonrider_inspect', str(root / entry['path'])], capture_output=True, text=True)
+    result = subprocess.run(['build/debug/dragonrider_inspect', str(root / entry['path'])], capture_output=True, text=True)
     table = entry['candidate_table']
     expected = f"Table offset: {table['offset']}\nRecord count: {table['count']}\n"
     if result.returncode != 0 or expected not in result.stdout:

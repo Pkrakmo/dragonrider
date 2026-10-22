@@ -37,8 +37,12 @@ int main(int argc, char** argv) {
         dword0302(0x12345678); word0302(1); word0302(2);
         for (unsigned n : {3U, 4U, 5U, 6U, 3U}) dword0302(n);
         dword0302(mode);
-        if (mode) dword0302(3);
-        bytes.insert(bytes.end(), {1,2,3});
+        if (mode) {
+            dword0302(11);
+            bytes.insert(bytes.end(), {0x78,0x9c,0x63,0x64,0x62,0x06,0x00,0x00,0x0d,0x00,0x07});
+        } else {
+            bytes.insert(bytes.end(), {1,2,3});
+        }
         auto table = static_cast<unsigned>(bytes.size()); bytes[6] = table;
         word0302(0x302); word0302(0); word0302(0); dword0302(12); dword0302(table - 12);
         return bytes;

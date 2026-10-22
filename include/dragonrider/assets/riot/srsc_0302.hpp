@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <vector>
 
 namespace dragonrider::assets::riot {
 
@@ -24,5 +25,12 @@ struct Srsc0302NewObject {
 // max_body_bytes is an inspection limit, not a retail format constraint.
 [[nodiscard]] Srsc0302NewObject parse_srsc_0302_new_object(
     std::span<const std::byte> payload, std::size_t max_body_bytes);
+
+// Decode the already selected new-object body only. Zero mode copies the
+// bounded body; nonzero mode requires one complete zlib stream whose output
+// exactly matches the fifth following dword. This is a diagnostic for the
+// observed branch, not a cache, audio, or runtime-object implementation.
+[[nodiscard]] std::vector<std::byte> decode_srsc_0302_new_object_body(
+    const Srsc0302NewObject& object, std::size_t max_decoded_bytes);
 
 } // namespace dragonrider::assets::riot

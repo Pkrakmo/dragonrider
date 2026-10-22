@@ -26,9 +26,9 @@ cmake --build --preset release
 ctest --preset release
 ```
 
-Both presets passed 14/14 synthetic tests on 2026-10-18. The debug inspector is at
-`build/debug/dragonrider_inspect`; the release inspector is under
-`build/release/`.
+Both presets passed 17/17 CTests on 2026-10-21 against the current tree. The
+debug inspector is at `build/debug/dragonrider_inspect`; the release inspector
+is under `build/release/`.
 
 The GitHub Actions workflow defines debug and release builds and synthetic tests
 on Linux, plus synthetic Python research-tool tests. Hosted results are not yet
@@ -53,8 +53,10 @@ bytes and are neither printed nor opened; the full retail grammar and runtime
 resolution remain unverified. See [ADR 0016](docs/decisions/0016-database-descriptor-inspection.md).
 
 `--record-0302-new INDEX FILE` reports the raw fields and bounded body span
-for the explicitly selected hypothetical new-object path, without decoding it
-or determining runtime cache state. See
+for the explicitly selected hypothetical new-object path. Its opt-in
+`--record-0302-new-decoded INDEX FILE` counterpart requires an exact declared
+zlib body where applicable and reports only decoded length and CRC32; neither
+mode identifies content or determines runtime cache state. See
 [ADR 0024](docs/decisions/0024-srsc-0302-new-object-diagnostic.md).
 
 `--record-0102 INDEX FILE` reports an explicitly selected `0x0102` record's

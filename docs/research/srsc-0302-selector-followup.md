@@ -317,3 +317,38 @@ python3 tools/research/verify_srsc_0302_new.py research/installed/us research/ex
 python3 tools/research/verify_srsc_0302_new.py research/installed/us research/exports/srsc-records/us.json build/release/dragonrider_inspect
 python3 -m unittest discover -s tools/research -p 'test_*.py' -v
 ```
+
+## Bounded decoded-body diagnostic, 2026-10-21
+
+**Observed implementation check:** the independent engine reader now exposes a
+separate caller-selected decode of the already selected hypothetical
+new-object framing. In zero mode it copies the bounded raw body. In nonzero
+mode it requires exactly one zlib stream, with no unused input and output
+equal to the earlier fifth-dword size. The inspector reports only the decoded
+byte count and CRC32. It does not print decoded bytes, name them as audio, or
+model a cache, device, or playback.
+
+On the same 178 individually hash-checked US snapshots, the independent
+Python verifier and both GCC builds agreed on all 1,561 metadata summaries in
+the 19 files containing selected records. This includes 1,171 zero-mode and
+390 nonzero-mode observations. The verifier hashes and parses its in-memory
+snapshot before the inspector reopens the input path, so concurrent mutation
+between those reads remains possible. This repeatability check does not turn
+the static waveform-shaped inference into an established runtime format.
+
+```sh
+cmake --build --preset debug
+ctest --test-dir build/debug --output-on-failure
+cmake --build --preset release
+ctest --test-dir build/release --output-on-failure
+python3 tools/research/verify_srsc_0302_new.py \
+  research/installed/us research/exports/srsc-records/us.json \
+  build/debug/dragonrider_inspect --decoded
+python3 tools/research/verify_srsc_0302_new.py \
+  research/installed/us research/exports/srsc-records/us.json \
+  build/release/dragonrider_inspect --decoded
+```
+
+The synthetic C++ cases cover raw mode, exact zlib decoding, declared output
+limits, damaged streams, and unused compressed input. All output and source
+snapshots remain private.

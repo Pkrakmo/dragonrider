@@ -27,6 +27,7 @@
 #include <iostream>
 #include <limits>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -46,6 +47,7 @@ void usage(std::ostream& out) {
            "       dragonrider_inspect --record-0102 <record-index> <file>\n"
            "       dragonrider_inspect --record-0102-array <record-index> <file>\n"
            "       dragonrider_inspect --record-0302-new <record-index> <file>\n"
+           "       dragonrider_inspect --record-0302-new-decoded <record-index> <file>\n"
            "       dragonrider_inspect --model-geometry <point-record> <group-record> <file>\n"
            "       dragonrider_inspect --manifest <edition> <file>\n"
            "       dragonrider_inspect --level-directory <record-index> <file>\n"
@@ -71,6 +73,7 @@ void usage(std::ostream& out) {
            "--record-0102 inspects a selected record prefix without resolving references.\n"
            "--record-0102-array summarizes the conditional array framing.\n"
            "--record-0302-new inspects the new-object branch framing without decoding its body.\n"
+           "--record-0302-new-decoded validates the observed body branch and reports metadata only.\n"
            "--model-geometry inspects explicitly selected model point and group records.\n"
            "--level-directory checks a level database-list prefix.\n"
            "--level-objects summarizes conditional object framing without resolving indices.\n"
@@ -215,7 +218,7 @@ int inspect_0102(const std::filesystem::path& path, std::size_t index, bool arra
     return 0;
 }
 
-int inspect_0302_new(const std::filesystem::path& path, std::size_t index) {
+int inspect_0302_new(const std::filesystem::path& path, std::size_t index, bool decode_body) {
     Input input(path);
     if (index >= input.records.size()) throw std::out_of_range("0x0302 record index exceeds record count");
     const auto& record = input.records[index];
@@ -233,6 +236,9 @@ int inspect_0302_new(const std::filesystem::path& path, std::size_t index) {
                                   static_cast<uInt>(parsed.prefix.size()));
     const auto body_crc = crc32(0, reinterpret_cast<const Bytef*>(parsed.body.data()),
                                 static_cast<uInt>(parsed.body.size()));
+    std::optional<std::vector<std::byte>> decoded;
+    if (decode_body)
+        decoded = dragonrider::assets::riot::decode_srsc_0302_new_object_body(parsed, max_texture_bytes);
     check_size_unchanged(input.stream, input.size);
     std::cout << "Record: " << index << "\nPrefix bytes: " << parsed.prefix.size()
               << "\nPrefix CRC32: " << std::hex << std::setfill('0') << std::setw(8) << prefix_crc
@@ -242,6 +248,12 @@ int inspect_0302_new(const std::filesystem::path& path, std::size_t index) {
         std::cout << ' ' << std::hex << std::setw(8) << value;
     std::cout << std::dec << "\nMode: " << parsed.mode << "\nBody bytes: " << parsed.body.size()
               << "\nBody CRC32: " << std::hex << std::setw(8) << body_crc << std::dec
+              << (decoded ? "\nDecoded body bytes: " + std::to_string(decoded->size()) : "")
+              << (decoded ? "\nDecoded body CRC32: " + [&] {
+                    const auto value = crc32(0, reinterpret_cast<const Bytef*>(decoded->data()),
+                                             static_cast<uInt>(decoded->size()));
+                    std::ostringstream out; out << std::hex << std::setfill('0') << std::setw(8) << value;
+                    return out.str(); }() : "")
               << "\nTrailing bytes (unvalidated): " << record.length - parsed.consumed << '\n';
     return 0;
 }
@@ -785,13 +797,14 @@ int main(int argc, char** argv) {
         try { return inspect_level_objects(argv[3], index); }
         catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
     }
-    if (argc == 4 && std::string_view(argv[1]) == "--record-0302-new") {
+    if (argc == 4 && (std::string_view(argv[1]) == "--record-0302-new" ||
+                      std::string_view(argv[1]) == "--record-0302-new-decoded")) {
         std::size_t index = 0;
         const std::string_view arg(argv[2]);
         const auto parsed = std::from_chars(arg.data(), arg.data() + arg.size(), index);
         if (parsed.ec != std::errc{} || parsed.ptr != arg.data() + arg.size() ||
             std::string_view(argv[3]).starts_with('-')) { usage(std::cerr); return 2; }
-        try { return inspect_0302_new(argv[3], index); }
+        try { return inspect_0302_new(argv[3], index, std::string_view(argv[1]) == "--record-0302-new-decoded"); }
         catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
     }
     if (argc == 4 && (std::string_view(argv[1]) == "--record-0102" ||

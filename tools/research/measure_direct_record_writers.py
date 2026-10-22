@@ -19,7 +19,12 @@ PUSH_IMMEDIATE = re.compile(r'\bpush\s+0x([0-9a-f]+)\b', re.I)
 
 
 def measure(disassembly, target=0x45f600):
-    """Return aggregate direct-call and nearest-immediate-push counts."""
+    """Return aggregate direct-call and up-to-three-immediate-push counts.
+
+    x86 callers push arguments right-to-left, so reversing the nearby pushes
+    restores their source order.  This remains a deliberately bounded text
+    scan: it cannot recover register, memory, indirect, or distant arguments.
+    """
     prior = []
     result = Counter()
     for line in disassembly.splitlines():
@@ -37,14 +42,16 @@ def measure(disassembly, target=0x45f600):
                 pushed = PUSH_IMMEDIATE.search(earlier)
                 if pushed:
                     selectors.append(int(pushed.group(1), 16))
-                    if len(selectors) == 2:
+                    if len(selectors) == 3:
                         break
             if not selectors:
                 result['calls_without_nearby_immediate_push'] += 1
             else:
                 result[f'selector_{selectors[0]:04x}'] += 1
-                if len(selectors) == 2:
+                if len(selectors) >= 2:
                     result[f'selector_pair_{selectors[0]:04x}_{selectors[1]:04x}'] += 1
+                if len(selectors) == 3:
+                    result[f'selector_triple_{selectors[0]:04x}_{selectors[1]:04x}_{selectors[2]:04x}'] += 1
         prior.append(instruction)
     return result
 

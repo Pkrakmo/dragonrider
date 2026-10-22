@@ -68,6 +68,13 @@
   chunk bytes under a four-byte-entry calculation; runtime use, software
   provenance and other editions remain unknown; see the
   [retail inventory](research/retail-asset-inventory.md).
+- **Observed, static (2026-10-21):** bounded byte inspection of the hash-verified
+  `.mpi` and `.tln` files found NUL-padded printable fields in the 1,620-byte
+  `.mpi` and no recognizable signature in the 32-byte `.tln`; their formats
+  and runtime roles remain unknown. A GNU `strings` scan of the hash-matched
+  US retail executable found no literal filename/suffix matches for those
+  files, and its generic `CreateFileA` import does not identify them as inputs.
+  See the [retail inventory note](research/retail-asset-inventory.md).
 - **Measured (2026-10-19):** 13,418 level frames match indexed candidate
   `0x0102` frames byte-for-byte under an installer-overlay hypothesis, and
   match descriptor flags and descriptor-relative text in the pinned RFL.

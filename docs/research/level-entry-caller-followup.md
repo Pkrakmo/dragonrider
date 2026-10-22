@@ -119,8 +119,9 @@ immediate `0x0020` selector. The matching calls are at `0x0040b55b`,
 `0x00427671`, `0x0042c8e6`, `0x004315f4`, and `0x00441e38`.
 
 `measure_direct_record_writers.py` parses only objdump instruction lines and
-looks back at most eight preceding instructions for an immediate `push` at a
-direct call. It cannot find a producer that calls indirectly, supplies a
+looks back at most eight preceding instructions for up to three immediate
+`push` values at a direct call, restoring x86 push order for its reported
+pair/triple keys. It cannot find a producer that calls indirectly, supplies a
 selector from a register or memory, is absent from this executable image, or
 reaches a different initializer. Therefore this is a bounded negative result,
 not evidence that the `0x0020` frames have no producer.
@@ -173,11 +174,14 @@ The other recovered immediate first selectors are `0x0000` (two calls),
 calls). Several direct calls have a non-immediate second or third selector,
 so the scan records only pairs formed by two nearby immediate pushes.
 
-The result corroborates the documented reader rather than proving that it is
-the sole runtime consumer. It excludes neither indirect calls, lookup wrappers,
-selectors supplied through registers or memory, code in optional modules, nor
-other editions. It also does not establish the reader's execution or frame
-meaning.
+The scanner now records a three-immediate key as well: this call is
+`(0x0020,0x0000,0x0000)`. This makes the zero third selector a bounded,
+reproducible property of the direct callsite rather than a manual reading of
+the nearby instructions. The result corroborates the documented reader rather
+than proving that it is the sole runtime consumer. It excludes neither indirect
+calls, lookup wrappers, selectors supplied through registers or memory, code
+in optional modules, nor other editions. It also does not establish the
+reader's execution or frame meaning.
 
 ```sh
 sha256sum research/binaries/us/Drakan.exe
@@ -557,6 +561,338 @@ the writer, which can create or replace files.
 ```sh
 objdump -d -Mintel research/binaries/us/Drakan.exe | rg -B 7 'call\s+0x45f600'
 ```
+
+## Direct conditional-consumer call boundaries, 2026-10-21
+
+**Observed, static:** a bounded whole-image GNU objdump 2.45.1-5.fc43 scan
+of the hash-checked US retail executable finds one direct relative call to
+the manager traversal at `0x004294d0`, at `0x0040cb4b`. Its enclosing routine
+first calls a virtual method through its object at `+0x194` after pushing two
+zero values, then invokes the manager through global `0x00482f78`, followed
+by a neighboring direct call to `0x00429470`. The local window does not itself
+write or pass a selected level-object's `+0x74`, `+0x78`, `+0x8c`, `+0xac`, or
+`+0xb0` fields. It therefore establishes a bounded call boundary, not the
+event that initialized or selected any particular object.
+
+The same scanner finds three direct relative calls to fallback resolver
+`0x004213f0`: `0x00420dd6`, `0x0042957a`, and `0x00445eb6`. The latter two
+are separate local sequences that test a candidate object's `+0x8c`, `+0xac`,
+and `+0xb0` fields before conditionally calling the resolver with the global
+level object at `0x00480230`; both use fallback `+0xac` when the resolver
+returns `0xffffffff`. The `0x0042957a` sequence is within the already traced
+manager traversal. The `0x00445eb6` sequence independently has the same
+local field gates, so the manager is not the sole statically observed
+downstream field consumer. The bounded `0x00420dd6` call occurs in a separate
+routine and has a different nearby immediate selector (`0x11` on one local
+branch); no object identity or semantic relationship is inferred from it.
+
+`measure_level_object_consumers.py` reports only direct call addresses and up
+to three nearby immediate pushes in x86 source order. It records no
+decompilation or raw bytes. It does not discover indirect/virtual calls,
+register- or memory-supplied arguments, other modules, or execution. Thus it
+cannot establish a conditional-frame producer, field lifetime, frame meaning,
+or runtime timing.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe
+objdump --version | head -1
+python3 tools/research/measure_level_object_consumers.py research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x40ca80 --stop-address=0x40cc20 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x420d80 --stop-address=0x420e00 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x429540 --stop-address=0x4295a0 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x445e70 --stop-address=0x445ee0 research/binaries/us/Drakan.exe
+python3 -m unittest discover -s tools/research -p 'test_measure_level_object_consumers.py' -v
+```
+
+The scanner also records direct relative tail jumps separately from calls. On
+the hash-checked executable it finds a tail jump at `0x00408685` to the
+manager traversal, after loading the manager global into `ecx`; the one direct
+`CALL` remains `0x0040cb4b`. This distinction matters because Ghidra's
+reference database classifies the tail transfer as a call reference. It does
+not show whether either path executes.
+
+Four synthetic tests cover target separation, immediate source ordering,
+non-immediate pushes, indirect-call exclusion, tail-jump separation, and the
+eight-instruction lookback bound. Confidence is high for the reported direct
+instructions and limited callsite counts, but not for complete xrefs or runtime
+behavior.
+
+## Ghidra ownership and xref follow-up, 2026-10-21
+
+**Observed, database-dependent:** a serialized read-only, no-analysis Ghidra
+12.1.4 run against the existing US retail project reported the expected
+executable SHA-256 above. It assigns the manager traversal to function
+`0x004294d0` (body `0x004294d0`–`0x00429631`), the fallback resolver to
+`0x004213f0` (body `0x004213f0`–`0x004219fd`), and the independent local
+gate at `0x00445eb6` to function `0x00445bd0` (body
+`0x00445bd0`–`0x004463ee`). The report's direct call references corroborate
+all three resolver calls and add a manager reference at `0x00408685`; Ghidra
+has no containing function for that latter address in this database. Independent
+raw-byte inspection shows that reference is an `E9` direct tail jump, not a
+`CALL`, as recorded above.
+
+The same bounded xref query reports direct calls to the independent gate's
+function entry at `0x0044011e` (inside `0x0043fe40`) and `0x00408727`
+(unowned in this database). It reports no direct call reference to
+`0x0040bf30`, the Ghidra owner of the known manager call at `0x0040cb4b`.
+These facts narrow static entry boundaries only. They do not show indirect or
+virtual callers, recover missing function ownership, establish execution,
+connect either gate to skipped frames, or identify object lifetime or field
+semantics.
+
+`TraceLevelObjectConsumers.java` caps each target's printed direct call xrefs
+at 40 and its instruction windows at 80; this run did not reach a cap. It
+uses Ghidra's existing analysis database and therefore supplements rather
+than supersedes the raw-disassembly scan. It exports no game bytes or
+decompilation.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe
+export GHIDRA_HOME=/home/qpotato/opt/ghidra_12.1.4_PUBLIC
+"$GHIDRA_HOME/support/analyzeHeadless" research/ghidra-projects Drakan_US_Retail -process Drakan.exe -readOnly -noanalysis -scriptPath tools/ghidra/scripts -postScript TraceLevelObjectConsumers.java
+```
+
+The local coordinator run used `-process Drakan.exe -readOnly -noanalysis`,
+a cooperative project lock, unique ignored logs, and per-run XDG cache/config
+directories. Close any GUI instance of the project before reproducing it;
+serialize access with the same protections, because a Ghidra database is not
+safe for concurrent project access.
+
+## Candidate indirect gate route, 2026-10-21
+
+**Observed, static:** the unowned short wrapper containing the independent
+gate call at `0x00408727` starts at `0x004086f0`. It conditionally prepares
+two stack values, calls `0x0043c4f0` through global `0x00483908`, then passes
+its original receiver in `ecx` and global `0x00483890` to `0x00445bd0`.
+The bounded Ghidra reference query finds no direct call reference to the
+wrapper entry, but finds one data reference at `0x00408b2c`. Raw disassembly
+confirms that initializer `0x00408a70` writes the wrapper address to an
+object's table slot `+0x5c`.
+
+A bounded whole-image text scan finds several `call [register+0x5c]`
+instructions, including one at `0x0040cc15`; such an indirect call could only
+reach the wrapper if its receiver has the table initialized by `0x00408a70`.
+The static windows do not establish that receiver identity, table lifetime,
+dynamic target, execution, or a relationship to the skipped level-object
+frames. This is therefore a candidate indirect route, not a recovered caller
+or frame producer.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x4086f0 --stop-address=0x408730 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x408a70 --stop-address=0x408bc2 research/binaries/us/Drakan.exe
+objdump -d -Mintel research/binaries/us/Drakan.exe | \
+  rg -i 'call[[:space:]]+(DWORD PTR )?\[[a-z]{3}\+0x5c\]'
+python3 tools/research/measure_level_object_consumers.py research/binaries/us/Drakan.exe
+python3 -m unittest discover -s tools/research -p 'test_measure_level_object_consumers.py' -v
+```
+
+## Loaded-RFL `+0x5c` replacement boundary, 2026-10-21
+
+**Observed, static:** the sole direct reference to initializer `0x00408a70`
+is its call at `0x00437bf5` inside `0x00437ab0`. Immediately beforehand, that
+function calls a `GetProcAddress` result, stores its return in global
+`0x00483bf4`, invokes the returned table's first entry, and passes the same
+returned table address to `0x00408a70`. This corroborates the earlier bounded
+trace that obtains `GetRFLInterface` for the loaded module. Thus, on this
+static success sequence, the initializer writes local wrapper `0x004086f0`
+to the returned RFL table at `+0x5c`; it is not merely an unrelated compatible
+object table.
+
+For the separately hash-pinned US `Dragon.rfl` input, table `0x1016b794`
+contains `0x10152410` at offset `+0x5c`. The executable has a global-table
+slot-`+0x5c` call at `0x0045afc8`; if that module was selected, the interface
+return succeeded, the initializer executed, and the table was not later
+changed, the call dispatches to the local wrapper rather than the module's
+original entry. The original module entry and local wrapper have different
+bounded instruction sequences, so no semantic equivalence is inferred.
+
+This establishes an executable-installed interception boundary on the loaded
+RFL table. It does not establish the loaded module identity, the dynamic table
+address, execution order, original entry's semantic role, the wrapper's
+runtime receiver, or a producer/consumer relation for the skipped conditional
+frames.
+
+**Observed, bounded helper context:** the wrapper first calls `0x0043c4f0`.
+That helper compares masked inputs against a field at its receiver `+0x164`
+and conditionally dispatches smaller state-update helpers. The read-only
+Ghidra database reports four direct calls to it: `0x00408719` in the wrapper,
+`0x00436a41`, `0x00436e5b`, and `0x0043b724`. The latter three do not call
+the independent gate in their inspected local windows; two also use global
+`0x00483908` as receiver. Consequently the wrapper's preliminary helper call
+is a shared state-management boundary, not evidence for conditional-frame
+handling.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe \
+  research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x437b74 --stop-address=0x437c08 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x45afb0 --stop-address=0x45afcb research/binaries/us/Drakan.exe
+objdump -s --start-address=0x1016b7e8 --stop-address=0x1016b808 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x10152410 --stop-address=0x10152475 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x43c4f0 --stop-address=0x43c5f2 research/binaries/us/Drakan.exe
+```
+
+## Loaded-RFL `+0x5c` aggregation caller separation, 2026-10-21
+
+**Observed, static:** the Ghidra 12.1.4 read-only/no-analysis report records
+`0x0045afb0` as a function ending at `0x0045afef`, with one direct caller at
+`0x0045ac72` in function `0x0045ab80`. Independent GNU objdump disassembly
+shows that caller allocating or selecting a 2,052-byte aggregate slot,
+then invokes `0x0045ad40`, `0x0045aee0`, `0x0045afb0`, `0x0045b050`,
+`0x0045b100`, and `0x0045b170` in sequence. Each receives an address based on
+the current aggregate offset, and each result advances that offset. The
+`0x0045afb0` contribution is therefore one bounded stage in this aggregate
+routine, not a direct call from the level-object manager.
+
+Inside that stage, the installed table's `+0x5c` entry receives a stack-local
+128-byte buffer and constant `0x80`. Its output is then passed, together with
+the caller-supplied argument and static format address `0x0047d75c`, to
+`0x0046810c`. The raw data at that address is an ASCII backslash-delimited
+percent-format fragment. The pinned module's original entry at `0x10152410`
+instead derives one of four constants from a module-global mode and forwards
+the caller buffer and two stack arguments to `0x10157000`; that helper is a
+bounded NUL-aware byte-copy routine in the inspected range. Neither bounded
+executable caller window nor the original module entry reads the level global
+at `0x00480230`, manager fields, SRSC selectors, or a conditional frame.
+
+This rules out only the **inspected static aggregation boundary** as direct
+evidence that the installed interception handles conditional frames. It does
+not identify the aggregate's full protocol, prove a dynamic table target or
+execution, establish the original slot's semantic name, or exclude relations
+through uninspected callers and indirect state.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe \
+  research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x45ab80 --stop-address=0x45acd0 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x45afb0 --stop-address=0x45afef research/binaries/us/Drakan.exe
+objdump -s --start-address=0x47d570 --stop-address=0x47d7e0 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x10152410 --stop-address=0x10152475 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x10157000 --stop-address=0x101570fe research/installed/us/English_-_Program_Files/Dragon.rfl
+```
+
+The Ghidra check used the existing `Drakan_US_Retail` project after verifying
+that no Ghidra GUI/headless process was active, a cooperative project lock,
+unique ignored logs and temporary XDG state. Run `run-FhNtFBTd` completed on
+2026-10-21 with the US executable hash above and Ghidra 12.1.4. The report
+prints at most 40 direct xrefs and 80 instructions per window; neither cap
+was reached. Database xrefs remain incomplete evidence for indirect calls.
+
+## Resolver-query and object-field setup separation, 2026-10-21
+
+**Observed, static:** the third direct call to fallback resolver `0x004213f0`,
+at `0x00420dd6`, belongs to Ghidra function `0x00420960` (body
+`0x00420960`–`0x00420e00`), rather than either of the two field-gated manager
+sequences. In the bounded call window, that routine chooses a neighboring
+query routine `0x00420e10` on three branches; otherwise it calls the fallback
+resolver with an incoming integer and four incoming values, including literal
+`0x11` on one branch. It then passes the result and the same incoming values
+to `0x00420960` itself at `0x00420df3`. No `+0x74`, `+0x78`, `+0x8c`,
+`+0xac`, or `+0xb0` object-field access occurs in that local call window.
+Ghidra records six direct entries to `0x00420960`, including this recursive
+call and two calls internal to `0x004213f0`; the existing database cannot
+establish its complete indirect callers or execution.
+
+Thus the third direct resolver call is a separately bounded recursive-query
+route, not a fourth static instance of the level-object's field-gated
+consumer. This classification does not give semantic names to its values,
+prove that its receiver is the global level object on any execution, or rule
+out a relation through state outside the inspected window.
+
+**Observed, static object setup:** Ghidra assigns initializer `0x00428000`
+to body `0x00428000`–`0x004280e2` and records its one direct call at
+`0x004292bc` within allocator `0x004291a0`. The initializer writes zero to
+`+0x8c`, and `-1` to both `+0xac` and `+0xb0`. Two separately bounded setter
+windows subsequently write `+0x8c` from a selected object's `+0x24` while
+also assigning that object to `+0x74`: `0x00428445` in function `0x00428340`
+and `0x0042972d` in function `0x00429640`. Each then calls through the
+selected object's first table entry. These instructions corroborate a static
+setup path for three manager gate fields, but do not establish the selected
+object's meaning, lifetime, which setter reaches an allocated object, or any
+conditional-frame producer/body semantics.
+
+**Observed, direct-boundary follow-up:** the Ghidra report records three
+direct calls to allocator `0x004291a0`, including `0x0043731b` in the traced
+level-object reader `0x00437290`. Raw disassembly shows that reader invokes
+the allocator through manager global `0x00482f78` in a counted allocation
+loop before it reads the object entries. The report records three direct calls
+to first setter function `0x00428340`, including `0x00445da8` in the
+independent gate `0x00445bd0`. Raw disassembly shows that call occurs before
+that gate reads its receiver's `+0x74`, then reaches its later `+0x8c`,
+`+0xac`, and `+0xb0` condition sequence. Therefore the static path can set
+the `+0x8c` gate input before that gate reads it. It does not show whether the
+branch takes this setter call, whether its target is a level-reader allocation,
+whether any condition succeeds, or how a conditional frame body is used.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x420d76 --stop-address=0x420dfe research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x428060 --stop-address=0x4280e2 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x428436 --stop-address=0x428462 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x42971a --stop-address=0x42977e research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x4372f6 --stop-address=0x437390 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x445d60 --stop-address=0x445ec8 research/binaries/us/Drakan.exe
+```
+
+Serialized read-only/no-analysis Ghidra 12.1.4 run `run-Ee3r0Cyw` corroborated
+the recursive-query ownership and its direct call entries; follow-up run
+`run-reMapSp5` corroborated the initializer/setter ownership and the single
+direct allocator call. Both used the existing hash-matched US retail project,
+the cooperative lock, unique ignored logs, and temporary XDG state. The script
+caps each call-xref list at 40 and instruction window at 80, with no cap
+reached. These reports are database-dependent and do not prove complete xrefs.
+Run `run-JS5ro3uF` additionally recorded the bounded direct calls to the
+allocator and both setters; its lists also remained below the cap.
+
+## Conditional-object serialization forwarder boundary, 2026-10-21
+
+**Observed, static:** raw executable disassembly identifies a contiguous
+callback-style range beginning at `0x0040dd30`. Its early error return at
+`0x0040dd5c` is followed by the successful continuation at `0x0040dd5f`, so
+the existing Ghidra database does not assign the latter instructions (and the
+`+0x9c` dispatch at `0x0040e113`) to a containing function. Before that
+dispatch, the range writes fields at `+0x8c`, `+0xac`, and `+0xb0` from its
+`ESI` object to a writer, together with other fields of the same object.
+**Inferred, cautiously:** the matching offsets to those initialized by
+`0x00428000` and inspected by the field-gated consumers make this a candidate
+object-serialization boundary in the same object family; offset coincidence
+alone does not prove object identity.
+
+On its path to `0x0040e113`, the range checks/updates `ESI+0xac`, loads the
+loaded-RFL table global at `0x00483bf4`, pushes `ESI`, and calls its `+0x9c`
+entry. The pinned module forwarder at `0x10156210` forwards its one object
+argument to `0x10156a80`; the inspected module window reads that object's
+`+2` and `+0xa0` fields. The executable pointer `0x0040dd30` occurs once in
+the `.rdata` pointer array at `0x00475520`, while the serialized Ghidra
+database records no direct relative call xrefs to it. This supports an
+indirect/callback route rather than identifying an ordinary direct caller.
+
+The bounded evidence does **not** prove that this range is invoked for a
+level-reader allocation, that the loaded module is selected or executes, that
+the forwarded object is a conditional frame, or that the module writes a
+selector-`0x0020` record. It also does not assign semantic names to any
+object field. Ghidra's missing ownership after the early return is a database
+coverage limitation, not proof of a separate function.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe \
+  research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x40dd30 --stop-address=0x40e150 research/binaries/us/Drakan.exe
+objdump -s --start-address=0x475500 --stop-address=0x475560 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x10156210 --stop-address=0x10156270 research/installed/us/English_-_Program_Files/Dragon.rfl
+objdump -d -Mintel --start-address=0x10156a60 --stop-address=0x10156b20 research/installed/us/English_-_Program_Files/Dragon.rfl
+```
+
+Serialized read-only/no-analysis Ghidra 12.1.4 runs `run-KjjqP29q`,
+`run-lM81Bp9Y`, and `run-HNrT2HCb` used the hash-matched US retail project,
+cooperative lock, unique ignored logs, and temporary XDG state. The first
+reported no containing function for `0x0040df40` or `0x0040e113`; the second
+reported zero direct call xrefs to `0x0040dd30`; and the third reported zero
+database xrefs to its raw pointer location `0x00475520`. The script caps
+each xref list at 40, and none of these zero-result queries reached the cap.
+As with all database xrefs, indirect-table references and dynamic calls
+remain outside that result.
 
 ## Frame text and candidate 0x0102 comparison, 2026-10-19
 
