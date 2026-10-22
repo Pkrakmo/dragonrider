@@ -38,10 +38,10 @@ to explicitly labeled cross-validation.
 
 | Status | Task | Scope | Dependency / next action | Owner |
 | --- | --- | --- | --- | --- |
-| Done | Evaluate REA with a disposable local project and actual agent-initiated MCP call | Ubuntu VM toolchain; Windows-native integration unverified | [Observed synthetic analysis and limitations](ubuntu-toolchain-validation.md), 2026-10-22 | Windows contributor |
-| Blocked | Independently benchmark the SRSC loader | `0x0045EDC0`, `0x0047D900` | Retail executable absent; obtain legitimate input privately, validate hash, then write evidence report | Windows contributor |
-| Blocked by milestone 1 | Map executable startup and imports | Entry point and initialization | Begin only after the benchmark report exists | Windows contributor |
-| Blocked by startup map | Map platform subsystems | Win32, DirectDraw/Direct3D, DirectInput, DirectSound | Use bounded questions and evidence reports | Windows contributor |
+| Done | Evaluate REA through actual MCP calls | Ubuntu Ghidra; Windows-native providers not evaluated | [Validation](ubuntu-toolchain-validation.md) | Research contributor |
+| Done | Independently benchmark SRSC loader | Canonical retail binary | [Evidence and reproduction](retail-loader-benchmark.md) | Research contributor |
+| Done | Map executable startup and imports | Bounded static entry/window/loop/exit map | [Map, limits and reproduction](startup-map.md) | Research contributor |
+| Ready | Map platform subsystems | Window lifetime and input first | Inspect 0x412350 and 0x4058d0; resolve graphics vtables | Research contributor |
 
 Update this single table rather than creating competing trackers. Use `Ready`,
 `In progress`, `Blocked`, or `Done`; a `Done` row must link to an evidence
