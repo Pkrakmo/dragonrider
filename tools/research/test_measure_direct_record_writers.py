@@ -26,6 +26,18 @@ class DirectWriterTests(unittest.TestCase):
         self.assertEqual(counts['selector_0401'], 1)
         self.assertEqual(counts['selector_pair_0401_037b'], 1)
 
+    def test_records_three_immediate_selector_words_in_call_order(self):
+        disassembly = '''
+  004372a7: 6a 00                push   0x0
+  004372a9: 6a 00                push   0x0
+  004372ab: 6a 20                push   0x20
+  004372bb: e8 10 7e 02 00       call   0x45f0d0
+'''
+        counts = measure(disassembly, 0x45f0d0)
+        self.assertEqual(counts['selector_0020'], 1)
+        self.assertEqual(counts['selector_pair_0020_0000'], 1)
+        self.assertEqual(counts['selector_triple_0020_0000_0000'], 1)
+
     def test_ignores_other_and_reports_missing_immediate(self):
         disassembly = '''
   00400000: 50                   push   eax

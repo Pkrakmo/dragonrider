@@ -11,7 +11,7 @@ from measure_0102_model_candidates import table
 from measure_srsc_prefix_selector import read_verified
 
 
-def expected(payload, index):
+def expected(payload, index, decoded_output=False):
     if len(payload) < 2:
         raise ValueError('short prefix')
     prefix_len = int.from_bytes(payload[:2], 'little')
@@ -32,13 +32,24 @@ def expected(payload, index):
     if size > 32 * 1024 * 1024 or size > len(payload) - offset:
         raise ValueError('body exceeds bound')
     crc = lambda b: f'{zlib.crc32(b):08x}'
-    return '\n'.join((f'Record: {index}', f'Prefix bytes: {prefix_len}',
+    output = [f'Record: {index}', f'Prefix bytes: {prefix_len}',
                       f'Prefix CRC32: {crc(payload[2:start])}', f'First dword: {first:08x}',
                       f'Words: {word1} {word2}',
                       'Following dwords: ' + ' '.join(f'{x:08x}' for x in fields),
                       f'Mode: {mode}', f'Body bytes: {size}',
-                      f'Body CRC32: {crc(payload[offset:offset + size])}',
-                      f'Trailing bytes (unvalidated): {len(payload) - offset - size}', ''))
+                      f'Body CRC32: {crc(payload[offset:offset + size])}']
+    body = payload[offset:offset + size]
+    if decoded_output:
+        if mode:
+            stream = zlib.decompressobj()
+            decoded = stream.decompress(body)
+            if not stream.eof or stream.unused_data or stream.unconsumed_tail or len(decoded) != fields[4]:
+                raise ValueError('stored body is not one exact declared zlib stream')
+        else:
+            decoded = body
+        output.extend((f'Decoded body bytes: {len(decoded)}', f'Decoded body CRC32: {crc(decoded)}'))
+    output.extend((f'Trailing bytes (unvalidated): {len(payload) - offset - size}', ''))
+    return '\n'.join(output)
 
 
 def main():
@@ -46,6 +57,7 @@ def main():
     parser.add_argument('root', type=Path)
     parser.add_argument('inventory', type=Path)
     parser.add_argument('inspector', type=Path)
+    parser.add_argument('--decoded', action='store_true', help='compare metadata-only body decoding')
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
     inspector = args.inspector.resolve(strict=True)
@@ -62,8 +74,9 @@ def main():
                 continue
             if offset < 12 or offset > end or length > end - offset:
                 raise ValueError('selected record outside payload')
-            want = expected(data[offset:offset + length], index)
-            proc = subprocess.run([str(inspector), '--record-0302-new', str(index), str(root / entry['path'])],
+            want = expected(data[offset:offset + length], index, args.decoded)
+            option = '--record-0302-new-decoded' if args.decoded else '--record-0302-new'
+            proc = subprocess.run([str(inspector), option, str(index), str(root / entry['path'])],
                                   capture_output=True, text=True, check=True)
             if proc.stdout != want:
                 raise ValueError(f'inspector mismatch at record {index}')

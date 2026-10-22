@@ -64,6 +64,16 @@ nonexistent temporary socket exited with `listen tcp: lookup <nil>: no such
 host`; no job ran. These results do not invalidate the earlier successful
 rootless Podman run, but do not verify the current snapshot with act.
 
+On 2026-10-21, the configured current-tree debug and release build directories
+reported no pending build work, and CTest passed 17/17 tests in each. The
+Python suites passed 215 research, 4 disc, and 6 Ghidra tests. The same day,
+`tools/ci/prepare_act_workspace.py` produced a 221-file isolated source
+snapshot without `research/`, `.git`, or `.env`; fresh debug and release builds
+and CTest passed 17/17 each, followed by the same 215/4/6 Python results. This
+checks the reviewed source allowlist and synthetic test inputs locally. It
+does not verify hosted CI; `actionlint`, `act`, Docker, and a container API
+socket were unavailable in that session.
+
 ## Running the workflow locally
 
 [`act`](https://nektosact.com/) runs GitHub Actions locally through a Docker

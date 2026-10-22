@@ -21,14 +21,19 @@ limit; the inspector additionally caps each selected record at 32 MiB. These
 are safety limits, not claims about the original format.
 
 The reader does not select runtime sources, model cache state, infer meaning
-from selectors, decode or decompress the stored span, or assert that the game
-would reach this branch. The existing-object path has a different offset and
-is outside this diagnostic. All returned spans require the original payload
-to remain alive.
+from selectors, or assert that the game would reach this branch. Its separate
+opt-in body decoder copies zero-mode bytes and, for nonzero mode, requires one
+complete zlib stream with exactly the declared output size and no unused input.
+The inspector reports only decoded byte count and CRC32; it never prints or
+exports decoded bytes. This structural check does not name the body as audio
+or establish playback. The existing-object path has a different offset and is
+outside this diagnostic. Input-backed spans require the original payload to
+remain alive.
 
 ## Consequences
 
 Synthetic malformed inputs can be rejected deterministically and sampled
-framing can be compared independently without publishing assets. Successful
-inspection establishes only that the selected bytes fit this framing; it is
-not validation of a runtime object or other editions.
+framing and exact body metadata can be compared independently without
+publishing assets. Successful inspection establishes only that the selected
+bytes fit this diagnostic; it is not validation of a runtime object, decoded
+content meaning, playback, or other editions.
