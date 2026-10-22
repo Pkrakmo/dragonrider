@@ -50,6 +50,28 @@ class DirectWriterTests(unittest.TestCase):
         self.assertEqual(counts['calls_without_nearby_immediate_push'], 1)
         self.assertNotIn('selector_0020', counts)
 
+    def test_does_not_cross_an_intervening_call(self):
+        disassembly = '''
+  00400000: 68 20 00 00 00       push   0x20
+  00400005: e8 06 00 00 00       call   0x400010
+  0040000a: e8 f1 f5 05 00       call   0x45f600
+'''
+        counts = measure(disassembly)
+        self.assertEqual(counts['direct_calls'], 1)
+        self.assertEqual(counts['calls_without_nearby_immediate_push'], 1)
+        self.assertNotIn('selector_0020', counts)
+
+    def test_does_not_cross_unconditional_transfer(self):
+        disassembly = '''
+  00400000: 68 20 00 00 00       push   0x20
+  00400005: eb 00                jmp    0x400007
+  00400007: e8 f4 f5 05 00       call   0x45f600
+'''
+        counts = measure(disassembly)
+        self.assertEqual(counts['direct_calls'], 1)
+        self.assertEqual(counts['calls_without_nearby_immediate_push'], 1)
+        self.assertNotIn('selector_0020', counts)
+
 
 if __name__ == '__main__':
     unittest.main()

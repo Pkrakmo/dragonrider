@@ -17,11 +17,13 @@ The C++ reader checks that the header, table and every offset/length range fit
 the supplied byte span. It rejects invalid magic, unsupported version, zero
 record count, truncated data, and out-of-file ranges with an error. Range
 checks are a DragonRider input-safety policy rather than a demonstrated
-original-loader check. For an independently supplied table, the reader checks
-that all declared entries fit before allocating the result and validates each
-payload range against the separately supplied file size; extra table bytes are
-ignored. Synthetic tests exercise all truncations of a two-entry table and a
-large count with a short table. Duplicate selectors, gaps, overlaps, zero-length ranges
+original-loader check. For an independently supplied table, a zero count or
+truncated table is rejected before allocating the result. Every payload range
+is validated against the separately supplied file size in a no-allocation pass
+before reserving or constructing records; extra table bytes are ignored.
+Synthetic tests exercise all truncations of a two-entry table, a large count
+with a short table, zero count, and invalid first and later payload ranges.
+Duplicate selectors, gaps, overlaps, zero-length ranges
 and data after the table are accepted where they fit the file; this does not
 claim the original game accepts each such arrangement. The inspector checks
 record ranges when `--records` is requested and displays at most 50 entries.

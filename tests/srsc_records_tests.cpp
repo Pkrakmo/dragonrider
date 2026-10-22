@@ -62,6 +62,12 @@ int main() {
     } catch (const std::out_of_range& e) {
         check(std::string(e.what()).find("table") != std::string::npos, "large count identifies table");
     }
+    try {
+        (void)dragonrider::assets::riot::read_srsc_record_table({}, 0, 0);
+        check(false, "independent table rejects zero count");
+    } catch (const std::invalid_argument& e) {
+        check(std::string(e.what()).find("empty") != std::string::npos, "zero count identifies empty table");
+    }
     check(dragonrider::assets::riot::read_srsc_record_table(std::span(bytes).subspan(24), 2, bytes.size()).size() == 2,
           "independent table accepts trailing bytes");
     try {
@@ -69,6 +75,13 @@ int main() {
         check(false, "independent table checks payload against file size");
     } catch (const std::out_of_range& e) {
         check(std::string(e.what()).find("record 1") != std::string::npos, "independent table identifies bad range");
+    }
+    try {
+        (void)dragonrider::assets::riot::read_srsc_record_table(table, 2, 13);
+        check(false, "independent table checks first payload range");
+    } catch (const std::out_of_range& e) {
+        check(std::string(e.what()).find("record 0") != std::string::npos,
+              "independent table identifies first bad range");
     }
     using namespace dragonrider::assets::riot;
     const std::array<SrscRecord, 5> lookup_records{{

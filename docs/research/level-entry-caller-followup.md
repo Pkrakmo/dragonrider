@@ -121,10 +121,13 @@ immediate `0x0020` selector. The matching calls are at `0x0040b55b`,
 `measure_direct_record_writers.py` parses only objdump instruction lines and
 looks back at most eight preceding instructions for up to three immediate
 `push` values at a direct call, restoring x86 push order for its reported
-pair/triple keys. It cannot find a producer that calls indirectly, supplies a
-selector from a register or memory, is absent from this executable image, or
-reaches a different initializer. Therefore this is a bounded negative result,
-not evidence that the `0x0020` frames have no producer.
+pair/triple keys. The lookback is reset after a call, return, or unconditional
+jump, so it cannot attribute pushes from an earlier sequential call path to
+the observed call. It deliberately does not infer control-flow feasibility
+from conditional jumps. It cannot find a producer that calls indirectly,
+supplies a selector from a register or memory, is absent from this executable
+image, or reaches a different initializer. Therefore this is a bounded
+negative result, not evidence that the `0x0020` frames have no producer.
 
 ```sh
 sha256sum research/binaries/us/Drakan.exe
@@ -132,9 +135,10 @@ python3 tools/research/measure_direct_record_writers.py research/binaries/us/Dra
 python3 -m unittest discover -s tools/research -p 'test_measure_direct_record_writers.py' -v
 ```
 
-The two synthetic tests cover a direct immediate selector, an unrelated call,
-and a direct target call with no immediate selector. The scan emits addresses
-and aggregate selector values only; it does not export proprietary code.
+The six synthetic tests cover a direct immediate selector, an unrelated call,
+a direct target call with no immediate selector, and lookback resets across an
+intervening call and unconditional jump. The scan emits addresses and
+aggregate selector values only; it does not export proprietary code.
 
 ## Module direct-initializer scan, 2026-10-20
 
@@ -657,6 +661,139 @@ a cooperative project lock, unique ignored logs, and per-run XDG cache/config
 directories. Close any GUI instance of the project before reproducing it;
 serialize access with the same protections, because a Ghidra database is not
 safe for concurrent project access.
+
+### Recheck, 2026-10-22
+
+**Observed, database-dependent:** a second serialized Ghidra 12.1.4
+`-process Drakan.exe -readOnly -noanalysis` run reported the same executable
+SHA-256, owner ranges, and bounded direct-call counts described above. In
+particular, it again reports manager target `0x004294d0` at `0x0040cb4b` and
+the unowned reference `0x00408685`, plus the two entry calls to
+`0x00445bd0` at `0x0044011e` and `0x00408727`. GNU objdump 2.45.1
+independently confirms that `0x00408685` is an `E9` tail jump to
+`0x004294d0`, and that `0x00408727` directly calls `0x00445bd0`.
+
+This rerun produced unique ignored logs with absolute per-run XDG paths after
+an initial pre-launch configuration error was rejected by Ghidra before the
+project opened. It adds confidence that these database-reported static facts
+are reproducible; it does not add xref completeness, execution evidence, or
+frame semantics.
+
+## Bounded producer/consumer sweep, 2026-10-23
+
+**Observed, static and database-dependent:** a serialized Ghidra 12.1.4
+`-process Drakan.exe -readOnly -noanalysis` run of
+`TraceConditionalFrameProducer.java` against the same hash-pinned US retail
+program reported 26 strict direct `CALL` references to full selector
+`0x0045f0d0`, ten to record initializer `0x0045f600`, one to manager traversal
+`0x004294d0`, and two to independent gate `0x00445bd0`. Within the bounded
+direct-call contexts, only `0x004372bb` has an immediate `PUSH 0x20`; raw
+objdump shows the preceding pushes at `0x004372b3` and `0x004372b5` are both
+zero, yielding `(0x0020,0,0)` in x86 argument order. No initializer context
+has that immediate selector. This reproduces the identified level-object
+reader; it does not identify a producer.
+
+The script deliberately counts only instructions whose mnemonic is `CALL`.
+It therefore excludes `0x00408685`, an `E9` jump thunk to `0x004294d0`, rather
+than treating a database call-type reference as a direct call. Its bounded
+windows also reproduce the reader writes at object offsets `+2` and `+0xb0`,
+the manager's `+0x74/+0x78/+0x8c/+0xac/+0xb0` gate reads, and the candidate
+forwarder's global `0x00483bf4` load followed by indirect slot-`+0x9c` call.
+Raw disassembly corroborates the selector and forwarder windows. The global
+RFL-table reference list reached its cap of 40. Direct xrefs omit indirect and
+virtual calls; neither static evidence nor this report establishes execution,
+producer identity, or frame semantics.
+
+```sh
+sha256sum research/binaries/us/Drakan.exe
+# With GUI access closed, use the cooperative project lock and absolute
+# per-run XDG paths as described in docs/GHIDRA.md.
+"$GHIDRA_HOME/support/analyzeHeadless" research/ghidra-projects Drakan_US_Retail \
+  -process Drakan.exe -readOnly -noanalysis \
+  -scriptPath tools/ghidra/scripts \
+  -postScript TraceConditionalFrameProducer.java
+objdump -d -Mintel --start-address=0x4372b0 --stop-address=0x4372c2 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x40e100 --stop-address=0x40e120 research/binaries/us/Drakan.exe
+```
+
+## Aggregate conditional-frame byte variants, 2026-10-23
+
+**Measured:** `measure_level_frame_variants.py` rechecks every selected level
+against the private SRSC inventory hash, then emits aggregate structure only.
+Across 23 US `.lvl` snapshots it decoded 16,312 objects, including 5,384
+frame-bearing objects and 13,418 frames. The frames contain 80,508 header
+bytes and 200,974 body bytes. All measured bodies are either printable
+no-NUL (5,241) or printable with exactly one terminal NUL (8,177); this is a
+byte-category observation, not a character-encoding or text claim. There are
+1,247 distinct raw body values and the same number of distinct tag/body pairs,
+with 12,171 repeated occurrences. No body appears under multiple tags, while
+107 tags appear with multiple bodies. No object contains a duplicate exact
+tag/body pair, and no trailing bytes follow the decoded frame sequences.
+
+This supports bounded framing and reuse measurements only. It neither proves
+that a tag names a body type nor connects a serialized frame to any writer,
+runtime consumer, or RFL descriptor. Five synthetic tests cover byte/length
+categories, duplicate accounting, nonpositive counts, every truncation of a
+synthetic frame, and stale-inventory rejection.
+
+```sh
+python3 tools/research/measure_level_frame_variants.py \
+  research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research \
+  -p 'test_measure_level_frame_variants.py' -v
+```
+
+## Aggregate conditional-frame tag/context equalities, 2026-10-23
+
+`measure_level_frame_tag_context.py` rechecked the same 23 hash-verified US
+levels and compares each raw frame tag only to numeric fields already exposed
+by the bounded object framing reader. It found 16,312 objects, 5,384 with
+frames, and 13,418 frames. Of the frames, 3,080 tags equal at least one tested
+raw context value, across 2,222 objects; 2,022 frame matches and 1,425 objects
+match multiple tested values. The individual equality counts are zero for
+object fields 0--5, 544 for field 6, 691 for the first word, 5/1/0 for the
+three following words, 270 for reference count, 1,413/1,440 for the two
+counts, 1,440 for frame count, and 889 for within-object frame position.
+
+These are collision counts only: numeric equality does not establish a
+tag's type, a field's meaning, producer identity, runtime use, or object
+identity. Five synthetic tests cover truncation, nonpositive framing counts,
+raw u16 comparison, and stale-inventory rejection; the tool emits no tags,
+payloads, paths, or hashes.
+
+## Aggregate conditional-frame tag sequences, 2026-10-23
+
+`measure_level_frame_tag_runs.py` rechecked the 23 hash-verified US levels
+and emitted only positional tag-sequence aggregates. Of 16,312 objects,
+10,928 have no frames, 1,511 have one, and 3,873 have multiple; the latter
+contain the 13,418 total frames. Within objects, 2,861 have a duplicate raw
+tag, accounting for 5,246 duplicate-tag occurrences. Adjacent comparisons
+are 1,161 increasing, 4,997 equal, and 1,876 decreasing; none of the equal
+adjacent tags also has an identical adjacent body.
+
+The results describe serialized ordering and duplication only. They do not
+assign tag meanings, imply sorting or uniqueness requirements, identify a
+writer or producer, or establish runtime consumption. Five synthetic tests
+cover framed truncation, nonpositive counts, duplicate/equal/increase/decrease
+classification, body-repeat distinction, and stale-inventory refusal. The
+tool emits no raw tags, bodies, paths, or hashes.
+
+## Aggregate conditional-frame tag recurrence, 2026-10-23
+
+`measure_level_frame_tag_recurrence.py` rechecks the 23 hash-verified US
+levels and, for each repeated raw tag, compares only the nearest earlier tag
+in that object. Across 16,312 objects and 13,418 frames, there are 8,172
+first tag occurrences and 5,246 repeats in 2,861 objects. Repeat distance is
+adjacent in 4,997 cases, 2--3 frames in 196, and 4 or more in 53. Of repeated
+nearest-prior comparisons, 916 have equal body length and 4,330 differ in
+length; all 5,246 bodies differ exactly from their nearest earlier same-tag
+body. No trailing bytes follow the decoded sequences.
+
+This is recurrence structure under a stated nearest-prior convention, not a
+tag type, record grammar, writer, producer, or runtime-use finding. Six
+synthetic tests cover truncation, nonpositive framing counts, repeat distance,
+equal/different body content and length, and stale-inventory refusal. The
+tool emits no raw tags, bodies, paths, or hashes.
 
 ## Candidate indirect gate route, 2026-10-21
 

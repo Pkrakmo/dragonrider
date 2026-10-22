@@ -10,12 +10,40 @@
 
 namespace dragonrider::assets::riot {
 
+namespace {
+
+constexpr std::size_t srsc_record_size = 14;
+
+void validate_payload_ranges(std::span<const std::byte> table, std::uint16_t count,
+                             std::uintmax_t file_size) {
+    core::BinaryReader reader(table);
+    constexpr auto little = core::ByteOrder::little;
+    for (std::size_t i = 0; i < count; ++i) {
+        reader.skip(3 * sizeof(std::uint16_t));
+        const auto offset = reader.read_u32(little);
+        const auto length = reader.read_u32(little);
+        if (offset > file_size || length > file_size - offset) {
+            throw std::out_of_range(
+                "SRSC record " + std::to_string(i) + " payload exceeds input length");
+        }
+    }
+}
+
+} // namespace
+
 std::vector<SrscRecord> read_srsc_record_table(std::span<const std::byte> table,
                                                 std::uint16_t count, std::uintmax_t file_size) {
-    const auto required = core::BinaryReader::checked_product(count, 14);
+    if (count == 0) throw std::invalid_argument("empty SRSC table");
+    const auto required = core::BinaryReader::checked_product(count, srsc_record_size);
     if (table.size() < required) {
         throw std::out_of_range("SRSC record table is truncated for declared count");
     }
+
+    // Do not allocate a result for a table whose payload metadata is already
+    // impossible for the supplied file size. This also makes validation
+    // transactional: callers either receive a complete table or no records.
+    validate_payload_ranges(table.first(required), count, file_size);
+
     core::BinaryReader reader(table);
     std::vector<SrscRecord> records;
     records.reserve(count);
@@ -23,9 +51,6 @@ std::vector<SrscRecord> read_srsc_record_table(std::span<const std::byte> table,
         constexpr auto little = core::ByteOrder::little;
         SrscRecord record{{reader.read_u16(little), reader.read_u16(little), reader.read_u16(little)},
                           reader.read_u32(little), reader.read_u32(little)};
-        if (record.offset > file_size || record.length > file_size - record.offset) {
-            throw std::out_of_range("SRSC record " + std::to_string(i) + " payload exceeds input length");
-        }
         records.push_back(record);
     }
     return records;
@@ -35,7 +60,7 @@ std::vector<SrscRecord> read_srsc_records(std::span<const std::byte> bytes) {
     const auto header = validate_srsc_header(bytes);
     core::BinaryReader reader(bytes);
     const auto table = reader.relative_bytes(0, header.table_offset,
-        core::BinaryReader::checked_product(header.record_count, 14));
+        core::BinaryReader::checked_product(header.record_count, srsc_record_size));
     return read_srsc_record_table(table, header.record_count, bytes.size());
 }
 
