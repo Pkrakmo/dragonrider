@@ -38,8 +38,8 @@ to explicitly labeled cross-validation.
 
 | Status | Task | Scope | Dependency / next action | Owner |
 | --- | --- | --- | --- | --- |
-| Ready | Evaluate REA with a disposable local project and actual agent-initiated MCP call | Toolchain | Record versions, configuration review, limits, and blocker if any | Windows contributor |
-| Ready | Independently benchmark the SRSC loader | `0x0045EDC0`, `0x0047D900` | Validate executable hash; write one evidence report | Windows contributor |
+| Done | Evaluate REA with a disposable local project and actual agent-initiated MCP call | Ubuntu VM toolchain; Windows-native integration unverified | [Observed synthetic analysis and limitations](ubuntu-toolchain-validation.md), 2026-10-22 | Windows contributor |
+| Blocked | Independently benchmark the SRSC loader | `0x0045EDC0`, `0x0047D900` | Retail executable absent; obtain legitimate input privately, validate hash, then write evidence report | Windows contributor |
 | Blocked by milestone 1 | Map executable startup and imports | Entry point and initialization | Begin only after the benchmark report exists | Windows contributor |
 | Blocked by startup map | Map platform subsystems | Win32, DirectDraw/Direct3D, DirectInput, DirectSound | Use bounded questions and evidence reports | Windows contributor |
 
