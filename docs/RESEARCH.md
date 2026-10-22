@@ -39,6 +39,15 @@
 - **Unknown:** no reliable evidence.
 
 ## Current observations
+- **Observed, static (2026-10-22):** an independent Ubuntu REA/Ghidra
+  investigation of the hash-matched US retail executable corroborated the
+  existing loader report: `0x0047D900` contains `SRSC`, and the loader at
+  `0x0045EDC0` reads 12 header bytes, checks version `0x0100`, and reads a
+  count-derived 14-byte table. A bounded startup map records the entry,
+  window/message loop, termination path and imports; subsystem labels remain
+  interpretations. The loader result adds independent provenance, not new
+  format semantics. Local `objdump` verification and reproduction gaps are
+  recorded in the [research handoff](research/rea-windows/README.md).
 - **Observed and inferred (2026-10-19):** a `0x0302` new-object path builds a
   candidate waveform-format structure and passes it through a conditional
   buffer-creation interface. All 1,561 sampled records have values consistent

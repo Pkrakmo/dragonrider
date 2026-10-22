@@ -6,9 +6,9 @@ evidence for the portable implementation; it does not authorize Windows engine
 porting or Windows CI.
 
 Read [AGENTS.md](../AGENTS.md), [the Git workflow](GIT-WORKFLOW.md), and
-[research guidance](RESEARCH.md) before starting. Windows research contributors
-also begin with the standalone [Windows mission](agents/windows-reverse-engineering-mission.md)
-and [Windows research onboarding](research/rea-windows/README.md).
+[research guidance](RESEARCH.md) before starting. The retail-binary research
+contributor should also use the [autonomous Ubuntu research prompt](agents/ubuntu-retail-binary-research-prompt.md)
+and [research handoff](research/rea-windows/README.md).
 
 ## Ownership and branches
 
@@ -17,14 +17,15 @@ prefixes: `research/`, `feat/`, `fix/`, `test/`, `docs/`, or `chore/`.
 
 - Fedora maintainer: portable C++20 engine, Fedora CI, existing Ghidra/MCP
   tooling, SRSC parser work, shared architecture and `TODO.md`, and merges.
-- Windows contributor: REA evaluation, independently owned Ghidra projects,
-  original startup and Win32/DirectX research, and evidence-backed files under
-  `docs/research/rea-windows/`.
+- Retail-binary research contributor: Ubuntu-based REA/Ghidra analysis of the
+  original Windows executable, startup and subsystem behavior, and
+  evidence-backed files under `docs/research/rea-windows/`. This work informs
+  the portable engine and does not require Windows development.
 
-The Windows contributor reserves `research/rea-windows`. Do not modify a file
+The research contributor reserves `docs/research/rea-windows/`. Do not modify a file
 owned by another contributor without agreeing on the handoff first. Do not edit
 `TODO.md`, shared architecture documents, Linux CI, or engine code from the
-Windows research branch unless the Fedora maintainer explicitly assigns it.
+research branch unless the Fedora maintainer explicitly assigns it.
 
 ## Getting started
 
@@ -33,10 +34,10 @@ the checkout. Keep retail executables, disc images, patches, extracted assets,
 Ghidra projects, exports, logs, and bulk decompilation in a private directory
 outside the repository where practical.
 
-On Windows PowerShell, create or update the research branch from the latest
-locally available `main`:
+On Ubuntu, create or update the research branch from the latest locally
+available `main`:
 
-```powershell
+```sh
 git fetch origin
 git switch main
 git pull --ff-only
@@ -45,14 +46,14 @@ git switch --create research/rea-windows
 
 If the branch already exists locally, use `git switch research/rea-windows`
 instead. If the remote branch exists but not the local branch, use
-`git switch --track origin/research/rea-windows`. These commands require the
-maintainer-provided remote and only the access already granted to the
-contributor; do not change remote URLs or repository settings.
+`git switch --track origin/research/rea-windows`. Confirm it contains current
+`main` before starting new work. Do not change remote URLs or repository
+settings.
 
 Before using a retail executable, validate its identity locally:
 
-```powershell
-Get-FileHash -Algorithm SHA256 -Path 'C:\private\Drakan.exe'
+```sh
+sha256sum "$DR_EXE"
 ```
 
 The current canonical US retail reference is
@@ -67,12 +68,11 @@ writable project databases, and serialize access even when a tool claims to be
 read-only. Review REA or MCP configuration changes before applying them; do
 not replace existing registrations or use elevated installers without approval.
 
-The initial independent benchmark is the retail loader at `0x0045EDC0`, the
-data address `0x0047D900`, and expected bytes `SRSC`. These are hypotheses to
-verify independently, not conclusions to copy. Keep OpenDrakan format material
-and community-patch reverse engineering out of that baseline. Subsequent
-Windows research covers startup/imports, Win32, DirectDraw/Direct3D,
-DirectInput, DirectSound, original engine state, and function maps.
+The independent retail loader benchmark and bounded startup map are complete;
+see the research handoff for evidence and remaining reproduction gaps. Continue
+with focused window/input and subsystem questions. Keep OpenDrakan format
+material and community-patch reverse engineering out of the independent
+baseline unless the maintainer approves explicitly labeled cross-validation.
 
 Use [the evidence template](research/rea-windows/evidence-template.md) for
 every meaningful finding and update the scoped backlog in the same directory.
@@ -84,8 +84,8 @@ bulk disassembly, pseudocode dumps, original binary data, or proprietary assets.
 Keep changes small and reviewable. Before requesting review, run the checks
 relevant to your changes, inspect `git status --short`, run `git diff --check`,
 and review the staged paths and content. Fedora engine changes use the CMake and
-CTest workflow in [CI documentation](CI.md); Windows research documentation
-does not add a Windows build requirement.
+CTest workflow in [CI documentation](CI.md); retail-binary research does not
+add a Windows build requirement.
 
 Open a research pull request only after the maintainer has granted the needed
 GitHub access and authorized a push. State the binary hash, tool versions,

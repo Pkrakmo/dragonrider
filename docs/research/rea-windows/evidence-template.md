@@ -1,4 +1,4 @@
-# Windows research evidence template
+# Retail binary research evidence template
 
 Copy this template into a new, narrowly named Markdown file in this directory.
 Keep the report independently authored and bounded; do not include bulk
