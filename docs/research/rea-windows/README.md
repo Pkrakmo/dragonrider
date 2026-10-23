@@ -77,7 +77,8 @@ explicitly separated; raw outputs remain private.
 | Done | Recover explicit callback-clear dispatch | [Interface slot and payload-byte gates](input-clear-dispatch-2026-10-23.md); conditional local reachability, not shutdown linkage |
 | Done | Identify a 0x28 producer and local clear | [Selectors, payload and emission boundary](input-clear-producer-2026-10-23.md); transport/record insertion remains unlinked |
 | Done | Trace module-init failure through callers | [The -6 fall-through and conditional shutdown](module-init-failure-2026-10-23.md); no runtime safety claim |
-| Ready | Resolve sender method and record insertion | Trace host field +0x1ac slot +0x60 to the record-dispatch input; do not infer delivery from matching payload layouts |
+| Done | Resolve sender construction and -2 fan-out | [Concrete target and return rule](input-sender-boundary-2026-10-23.md); last-result sign is not all-target delivery |
+| Ready | Link individual sender to receiving records | Trace 0x4508d0 and receiving/record insertion separately; matching payload layouts do not prove delivery |
 
 All new investigation commands and tool limitations are in the
 [lifecycle reproduction procedure](lifecycle-reproduction-2026-10-23.md).

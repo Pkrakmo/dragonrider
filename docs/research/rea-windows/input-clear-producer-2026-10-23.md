@@ -89,3 +89,6 @@ payload offsets. Ghidra query: `InspectPinnedRetailFunctions.java 0x101516b0`
 with `-process Dragon.rfl -readOnly -noanalysis`. This function was already
 defined; no ownership was guessed. Only the selected branches were independently
 cross-checked, not the entire large function or other selector semantics.
+
+Follow-up: [sender construction and fan-out](input-sender-boundary-2026-10-23.md)
+now resolve host +0x60 conditionally; transport and record insertion remain open.
