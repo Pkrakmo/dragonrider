@@ -64,6 +64,39 @@ std::vector<SrscRecord> read_srsc_records(std::span<const std::byte> bytes) {
     return read_srsc_record_table(table, header.record_count, bytes.size());
 }
 
+SrscPayloadLayout summarize_srsc_payload_layout(std::span<const SrscRecord> records,
+                                                std::uint32_t table_offset, std::size_t table_size,
+                                                std::uintmax_t file_size) {
+    constexpr std::uintmax_t srsc_header_size = 12;
+    if (table_offset > file_size || table_size > file_size - table_offset) {
+        throw std::out_of_range("SRSC table exceeds input length");
+    }
+    const auto table_end = static_cast<std::uintmax_t>(table_offset) + table_size;
+    SrscPayloadLayout result;
+    std::uintmax_t previous_end = 0;
+    for (std::size_t i = 0; i < records.size(); ++i) {
+        const auto& record = records[i];
+        const auto offset = static_cast<std::uintmax_t>(record.offset);
+        const auto length = static_cast<std::uintmax_t>(record.length);
+        if (offset > file_size || length > file_size - offset) {
+            throw std::out_of_range(
+                "SRSC record " + std::to_string(i) + " payload exceeds input length");
+        }
+        const auto end = offset + length;
+        if (end <= table_offset) ++result.before_table;
+        else if (offset < table_end) ++result.overlapping_table;
+        else ++result.after_table;
+
+        if (i == 0) result.first_starts_at_or_after_header = offset >= srsc_header_size;
+        else if (previous_end == offset) ++result.contiguous_transitions;
+        else if (previous_end < offset) ++result.gap_transitions;
+        else ++result.overlap_transitions;
+        previous_end = end;
+    }
+    result.last_ends_at_table = !records.empty() && previous_end == table_offset;
+    return result;
+}
+
 std::vector<std::size_t> make_srsc_record_order(std::span<const SrscRecord> records,
                                                 SrscRecordOrder order) {
     std::vector<std::size_t> result(records.size());

@@ -28,8 +28,13 @@ and data after the table are accepted where they fit the file; this does not
 claim the original game accepts each such arrangement. The inspector checks
 record ranges when `--records` is requested and displays at most 50 entries.
 It reads the bounded table rather than the entire file, without a 128 MiB
-input limit. Size changes during inspection are detected; unchanged-size
-concurrent modifications are not guaranteed to be detected.
+input limit. That mode also reports a descriptive table-order payload-layout
+summary: placement before, overlapping, or after the table; adjacent contiguous,
+gap, and overlap transitions; and the two endpoint patterns measured in the US
+sample. The summary validates supplied ranges but deliberately does not reject
+counterexamples to those measured patterns. Size changes during inspection are
+detected; unchanged-size concurrent modifications are not guaranteed to be
+detected.
 
 The opt-in `--record-0302-new INDEX FILE` diagnostic reads one selected
 hypothetical new-object framing under bounded record and body limits. Its

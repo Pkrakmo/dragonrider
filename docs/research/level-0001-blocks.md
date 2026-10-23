@@ -142,6 +142,10 @@ This is static direct-call evidence only. It does not classify the remaining
 dynamic flag, find indirect or virtual callers, establish reachability, assign
 a meaning to the flags, or establish the discriminator's runtime role.
 
+The five documented discriminator-related `0x04`/`0x08`/`0x10`/`0x20` flag
+tests are now guarded by a hash-pinned, seven-anchor static verifier. Its scope
+and limits are in [the branch-anchor note](level-0001-query-flag-branches-2026-10-23.md).
+
 ## Per-entry cell pointer grid, 2026-10-18
 
 The pointer checked at `entry + 0x34` is used as a runtime cell-head array on
@@ -223,6 +227,19 @@ The result extends the entry evidence without completing the `(1,0,0)` format:
 first-dword semantics, the discriminator's general meaning, remaining entry
 fields, runtime visibility, axes, units, geometry and other editions remain
 unknown.
+
+### Entry-mode measurement hardening, 2026-10-23
+
+`measure_level_entry_modes.py` now validates selected inventory-entry shape,
+hash syntax, status, file size, root-contained non-symlink paths, and each
+file hash before decoding. It also rejects a selected `(1,0,0)` range that
+overlaps its SRSC table before interpreting table bytes as a level prefix.
+That is a safety rule for this targeted raw-entry measurement, not a new
+general SRSC layout requirement: the engine reader continues to report rather
+than reject otherwise valid unusual payload placement. Five synthetic tests
+cover structural truncation, count limits, missing selected records, table
+overlap, invalid inventory metadata, and a symlink path. A fresh hash-checked
+run reproduced the prior 23-file / 4,445-entry discriminator and flag totals.
 
 ```sh
 sha256sum research/binaries/us/Drakan.exe

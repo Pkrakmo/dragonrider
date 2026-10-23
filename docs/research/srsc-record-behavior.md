@@ -68,6 +68,11 @@ has a signed low-order distance argument when its high-order pointer is null;
 this static trace alone does not settle practical support for offsets at or
 above 2 GiB.
 
+The reader fields and bounded common-writer stores are jointly guarded by a
+hash-pinned 14-anchor verifier; see [the record-field anchor note](srsc-record-field-anchors-2026-10-23.md).
+It confirms the documented offsets without adding a success-path or universal
+format claim.
+
 ## Reproduction
 
 Close any Ghidra GUI using this project and run in a dedicated shell. A process

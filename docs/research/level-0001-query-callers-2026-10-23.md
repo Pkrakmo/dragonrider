@@ -79,3 +79,15 @@ For every reported call, subtract `0x60` from its address and use the call
 address plus five as the `objdump` window bounds. Record only the call address,
 window and argument provenance; do not publish the private executable or bulk
 disassembly.
+
+The committed bounded verifier checks the executable's pinned SHA-256 and the
+23 direct relative call addresses before this report's per-window provenance
+classification is reused:
+
+```sh
+python3 tools/research/verify_level_query_callers.py research/binaries/us/Drakan.exe
+python3 -m unittest discover -s tools/research -p 'test_verify_level_query_callers.py'
+```
+
+It deliberately does not classify stack arguments or make any inference about
+the absent indirect-call population.

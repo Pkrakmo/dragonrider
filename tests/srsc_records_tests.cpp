@@ -83,6 +83,33 @@ int main() {
         check(std::string(e.what()).find("record 0") != std::string::npos,
               "independent table identifies first bad range");
     }
+    const std::array<dragonrider::assets::riot::SrscRecord, 2> contiguous_layout_records{{
+        {{0, 0, 0}, 12, 6}, {{0, 0, 0}, 18, 6}}};
+    const auto contiguous_layout = dragonrider::assets::riot::summarize_srsc_payload_layout(
+        contiguous_layout_records, 24, 28, bytes.size());
+    check(contiguous_layout.before_table == 2 && contiguous_layout.overlapping_table == 0 &&
+              contiguous_layout.after_table == 0,
+          "layout classifies payloads before table");
+    check(contiguous_layout.contiguous_transitions == 1 && contiguous_layout.gap_transitions == 0 &&
+              contiguous_layout.overlap_transitions == 0,
+          "layout reports contiguous table-order payloads");
+    check(contiguous_layout.first_starts_at_or_after_header && contiguous_layout.last_ends_at_table,
+          "layout reports observed endpoint pattern");
+    const std::array<dragonrider::assets::riot::SrscRecord, 3> unusual_layout_records{{
+        {{0, 0, 0}, 4, 4}, {{0, 0, 0}, 6, 12}, {{0, 0, 0}, 60, 2}}};
+    const auto unusual_layout = dragonrider::assets::riot::summarize_srsc_payload_layout(
+        unusual_layout_records, 16, 42, 80);
+    check(unusual_layout.before_table == 1 && unusual_layout.overlapping_table == 1 &&
+              unusual_layout.after_table == 1,
+          "layout describes ranges without rejecting unusual placement");
+    check(unusual_layout.gap_transitions == 1 && unusual_layout.overlap_transitions == 1 &&
+              !unusual_layout.first_starts_at_or_after_header && !unusual_layout.last_ends_at_table,
+          "layout distinguishes gaps, overlaps, and endpoint counterexamples");
+    const std::array<dragonrider::assets::riot::SrscRecord, 1> invalid_layout_record{{{{0, 0, 0}, 79, 2}}};
+    try {
+        (void)dragonrider::assets::riot::summarize_srsc_payload_layout(invalid_layout_record, 16, 14, 80);
+        check(false, "layout validates supplied payload ranges");
+    } catch (const std::out_of_range&) {}
     using namespace dragonrider::assets::riot;
     const std::array<SrscRecord, 5> lookup_records{{
         {{1, 9, 2}, 1, 1}, {{1, 2, 7}, 2, 1}, {{1, 2, 8}, 3, 1},

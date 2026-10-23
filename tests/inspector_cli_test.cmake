@@ -71,6 +71,7 @@ check(0 "Size: 0 bytes\nHeader (up to 16 bytes):\nFormat: unknown" "${FIXTURE_DI
 check(0 "Header (up to 16 bytes): 01 02 03\nFormat: unknown" "${FIXTURE_DIR}/unknown")
 check(0 "Format: SRSC\nVersion: 0x0100\nTable offset: 12\nRecord count: 1" "${FIXTURE_DIR}/valid.srsc")
 check(0 "Record 0: selectors=0,0,0 offset=0 length=0" --records "${FIXTURE_DIR}/valid.srsc")
+check(0 "Payload layout: before table=1 overlaps table=0 after table=0\nAdjacent payloads: contiguous=0 gaps=0 overlaps=0\nFirst payload starts at or after header: no\nLast payload ends at table: no" --records "${FIXTURE_DIR}/valid.srsc")
 check(0 "Records omitted: 1" --records "${FIXTURE_DIR}/many.srsc")
 check(0 "Edition: synthetic\nContainer: ${FIXTURE_DIR}/valid.srsc\nSHA-256: not provided\nPhysical record 0: offset=0 length=0" --manifest synthetic "${FIXTURE_DIR}/valid.srsc")
 check(0 "Physical record 50: offset=0 length=0" --manifest synthetic "${FIXTURE_DIR}/many.srsc")

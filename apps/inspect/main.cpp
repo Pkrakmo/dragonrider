@@ -67,7 +67,8 @@ void usage(std::ostream& out) {
            "       dragonrider_inspect --help\n"
            "Print the file size and up to 16 header bytes in hexadecimal.\n"
            "SRSC headers and table bounds are validated and reported. --records\n"
-           "checks all payload ranges and shows up to 50 records. --manifest lists\n"
+           "checks all payload ranges, reports a non-enforcing layout summary, and\n"
+           "shows up to 50 records. --manifest lists\n"
            "all physical ranges with supplied provenance. SRSC validation uses\n"
            "bounded memory. --database inspects a restricted database descriptor.\n"
            "--record-0102 inspects a selected record prefix without resolving references.\n"
@@ -763,6 +764,19 @@ int inspect(const std::filesystem::path& path, bool show_records, std::optional<
             }
         } else {
             check_size_unchanged(input, file_size);
+            const auto layout = dragonrider::assets::riot::summarize_srsc_payload_layout(
+                records, header.table_offset,
+                dragonrider::core::BinaryReader::checked_product(header.record_count, 14), file_size);
+            std::cout << "Payload layout: before table=" << layout.before_table
+                      << " overlaps table=" << layout.overlapping_table
+                      << " after table=" << layout.after_table << '\n'
+                      << "Adjacent payloads: contiguous=" << layout.contiguous_transitions
+                      << " gaps=" << layout.gap_transitions
+                      << " overlaps=" << layout.overlap_transitions << '\n'
+                      << "First payload starts at or after header: "
+                      << (layout.first_starts_at_or_after_header ? "yes" : "no") << '\n'
+                      << "Last payload ends at table: "
+                      << (layout.last_ends_at_table ? "yes" : "no") << '\n';
             const auto shown = std::min(records.size(), max_display_records);
             for (std::size_t i = 0; i < shown; ++i) {
                 const auto& record = records[i];
