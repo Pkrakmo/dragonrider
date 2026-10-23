@@ -75,7 +75,9 @@ explicitly separated; raw outputs remain private.
 | Ready | Bound one action-code family in the large module callback | Select a narrow case in 0x1000c6c0; correlate its mapping producer before assigning gameplay labels |
 | Done | Establish normal-exit input/module release order | [Shutdown and handle boundary](module-shutdown-boundary-2026-10-23.md); release attempts ordered, unconditional callback clearing not proven |
 | Done | Recover explicit callback-clear dispatch | [Interface slot and payload-byte gates](input-clear-dispatch-2026-10-23.md); conditional local reachability, not shutdown linkage |
-| Ready | Trace clear-dispatch producers and failure paths | Trace producers of 0x28 records upstream of the established 0x451761 caller; separately trace early-init failure into host shutdown |
+| Done | Identify a 0x28 producer and local clear | [Selectors, payload and emission boundary](input-clear-producer-2026-10-23.md); transport/record insertion remains unlinked |
+| Done | Trace module-init failure through callers | [The -6 fall-through and conditional shutdown](module-init-failure-2026-10-23.md); no runtime safety claim |
+| Ready | Resolve sender method and record insertion | Trace host field +0x1ac slot +0x60 to the record-dispatch input; do not infer delivery from matching payload layouts |
 
 All new investigation commands and tool limitations are in the
 [lifecycle reproduction procedure](lifecycle-reproduction-2026-10-23.md).

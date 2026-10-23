@@ -97,7 +97,9 @@ to invoke a successfully initialized module's shutdown routine.
 A filtered linear-disassembly scan found direct `0x1000e900` calls with explicit
 argument 1 at 0x10013789, 0x101489ce, 0x10148a05 and 0x1014acb6; explicit
 argument **0 at 0x10150f3c** (push at 0x10150f3a); and register EBX at
-0x10152043, whose value was not established. These are not exhaustive indirect
+0x10152043, whose value was not established in that initial scan. The subsequent
+[producer report](input-clear-producer-2026-10-23.md) proves zero on its
+selector 0x12/0x14 paths. These are not exhaustive indirect
 xrefs. The explicit clear site is verified locally but not linked to shutdown.
 At this stage its containing function was undefined; no function start was
 guessed. The subsequent [dispatch investigation](input-clear-dispatch-2026-10-23.md)
@@ -139,3 +141,6 @@ function ownership with arguments `0x10150f3c 0x10152043` in the same RFL
 project and read-only mode; its hash guard accepts only the pinned RFL.
 This ownership query also completed successfully. Keep all raw outputs/decompilation
 outside Git. No new external implementation or runtime observation was used.
+
+Follow-up: [initialization failure](module-init-failure-2026-10-23.md) now
+traces the -6 result through caller fall-through and conditional later shutdown.
