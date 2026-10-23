@@ -99,8 +99,9 @@ argument 1 at 0x10013789, 0x101489ce, 0x10148a05 and 0x1014acb6; explicit
 argument **0 at 0x10150f3c** (push at 0x10150f3a); and register EBX at
 0x10152043, whose value was not established. These are not exhaustive indirect
 xrefs. The explicit clear site is verified locally but not linked to shutdown.
-Its containing function was undefined in the current Ghidra database; no
-function start was guessed. The other site belongs to 0x101516b0, with a large
+At this stage its containing function was undefined; no function start was
+guessed. The subsequent [dispatch investigation](input-clear-dispatch-2026-10-23.md)
+recovered the entry using the interface table and established its local gates. The other site belongs to 0x101516b0, with a large
 body, and is left for a separate bounded control-flow question.
 
 For a portable lifecycle, distinguish handle acquisition, interface provisioning,

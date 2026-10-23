@@ -74,7 +74,8 @@ explicitly separated; raw outputs remain private.
 | Done | Map downstream pointer-routing boundaries | [Hit tests, state and forwarding](pointer-routing-2026-10-23.md); pointee lifetime and concrete widget targets remain unknown |
 | Ready | Bound one action-code family in the large module callback | Select a narrow case in 0x1000c6c0; correlate its mapping producer before assigning gameplay labels |
 | Done | Establish normal-exit input/module release order | [Shutdown and handle boundary](module-shutdown-boundary-2026-10-23.md); release attempts ordered, unconditional callback clearing not proven |
-| Ready | Trace explicit callback-clear reachability | Recover containing function at 0x10150f3c; separately trace early-init failure into host shutdown |
+| Done | Recover explicit callback-clear dispatch | [Interface slot and payload-byte gates](input-clear-dispatch-2026-10-23.md); conditional local reachability, not shutdown linkage |
+| Ready | Trace clear-dispatch producers and failure paths | Trace producers of 0x28 records upstream of the established 0x451761 caller; separately trace early-init failure into host shutdown |
 
 All new investigation commands and tool limitations are in the
 [lifecycle reproduction procedure](lifecycle-reproduction-2026-10-23.md).
