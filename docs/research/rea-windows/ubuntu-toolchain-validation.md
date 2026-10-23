@@ -1,5 +1,8 @@
 # Isolated Ubuntu REA/Ghidra toolchain validation
 
+> Historical setup report: the missing-input blocker below was later closed by
+> the [retail benchmark](retail-loader-benchmark.md). It is not a current blocker.
+
 ## Scope
 
 - Date: 2026-10-22.

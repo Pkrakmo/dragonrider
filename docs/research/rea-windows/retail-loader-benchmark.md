@@ -110,3 +110,9 @@ objdump -d -Mintel --start-address=0x45edc0 --stop-address=0x45ef62 "$DR_EXE"
 Repeat the listed MCP requests with the pinned toolchain, then compare the
 address-indexed facts. Keep output private. No OpenDrakan format documentation,
 community patch sources, proprietary code publication, or GitHub push was used.
+
+## Reproduction follow-up, 2026-10-23
+
+See the [reproduction audit](reproduction-audit-2026-10-23.md) for exact
+Ubuntu tool versions, the independent raw-check method, a versioned PE probe,
+and commands. Original observations above are preserved as historical evidence.

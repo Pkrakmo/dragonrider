@@ -108,3 +108,9 @@ lower for subsystem labels and indirect targets. Next inspect `0x412350` for
 window lifetime and `0x4058d0` for input initialization. Resolve vtables before
 naming graphics interfaces. See the existing README backlog for ownership.
 No external community research, engine changes or runtime compatibility claims.
+
+## Reproduction follow-up, 2026-10-23
+
+See the [reproduction audit](reproduction-audit-2026-10-23.md) for exact
+Ubuntu tool versions, the independent raw-check method, a versioned PE probe,
+and commands. Original observations above are preserved as historical evidence.
