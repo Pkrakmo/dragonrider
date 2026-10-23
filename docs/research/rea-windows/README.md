@@ -71,9 +71,9 @@ explicitly separated; raw outputs remain private.
 | Done | Map input event-consumer contracts | [Three consumer boundaries](input-event-consumers-2026-10-23.md); raw event uncertainty preserved |
 | Done | Resolve input callback ownership across EXE/RFL | [Conditional module bridge and temporary capture](input-callback-binding-2026-10-23.md); selected runtime module unobserved |
 | Done | Map small RFL pointer callback | [Kinds, masks and downstream boundary](input-pointer-callback-2026-10-23.md); jump table independently checked |
-| Ready | Resolve downstream pointer-routing helpers | Trace 0x10128850 and 0x10128710 with receiver ownership; do not assume UI semantics |
+| Done | Map downstream pointer-routing boundaries | [Hit tests, state and forwarding](pointer-routing-2026-10-23.md); pointee lifetime and concrete widget targets remain unknown |
 | Ready | Bound one action-code family in the large module callback | Select a narrow case in 0x1000c6c0; correlate its mapping producer before assigning gameplay labels |
-| Ready | Verify shutdown ordering at the module boundary | Check callback clear vs module/interface release, including early-init failure; normal process cleanup alone is insufficient |
+| In progress | Verify shutdown ordering at the module boundary | Check callback clear vs module/interface release, including early-init failure; normal process cleanup alone is insufficient |
 
 All new investigation commands and tool limitations are in the
 [lifecycle reproduction procedure](lifecycle-reproduction-2026-10-23.md).
