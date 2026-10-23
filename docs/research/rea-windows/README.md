@@ -53,22 +53,25 @@ objdump -d -Mintel --start-address=0x468e20 --stop-address=0x468f20 research/bin
 objdump -d -Mintel --start-address=0x412010 --stop-address=0x4122c0 research/binaries/us/Drakan.exe
 ```
 
-The reports still need stronger reproduction detail before their findings are
-treated as fully reproducible by another maintainer: record the GNU `objdump`
-and PE-parser versions used by the contributor, the exact command/procedure for
-the startup/import inventory, and the method used for the contributor's
-separate cross-check. Those details are not present in the committed reports.
-Keep raw outputs private. Do not repeat completed baseline work while these
-documentation gaps are being filled.
+The contributor's 2026-10-23 [reproduction audit](reproduction-audit-2026-10-23.md)
+records Ubuntu objdump 2.42, Python 3.12.3, the original inline-parser method,
+and a versioned hash-gated metadata probe. A fresh metadata check agrees with
+13 import descriptors and 207 entries. Historical and repeated checks are
+explicitly separated; raw outputs remain private.
 
 ## Next bounded work
 
-Inspect window-procedure lifetime at `0x00412350` and the input-initialization
-candidate at `0x004058D0`, separately. For each, pin the executable hash, use
-REA/Ghidra with a separately owned project, corroborate important facts with
-bounded `objdump` or raw-byte inspection, and preserve uncertainty in the
-report. If the retail input or Ghidra tool is unavailable, record that blocker
-and continue another independent, non-sensitive task.
+| Status | Task | Evidence / next action |
+| --- | --- | --- |
+| Done | Close baseline reproduction gaps | [Audit and commands](reproduction-audit-2026-10-23.md) |
+| Done | Map bounded window lifetime at 0x412350 | [Report](window-lifetime-2026-10-23.md); explicit callback recovery and raw cross-check |
+| Done | Map input setup at 0x4058d0 and selected ownership paths | [Report](input-initialization-2026-10-23.md); full runtime recovery remains unknown |
+| Done | Connect activation field and selected input vtable slots | [Bounded follow-up](input-activation-poll-boundary-2026-10-23.md); conditional static dispatch |
+| Ready | Resolve destructor registration/invocation | Trace 0x466d38 and initializer/exit ranges; do not assume atexit semantics |
+| Ready | Map input event-consumer contracts | Separate questions at 0x405cd0, 0x405d10 and 0x405fc0; preserve raw event uncertainty |
+
+All new investigation commands and tool limitations are in the
+[lifecycle reproduction procedure](lifecycle-reproduction-2026-10-23.md).
 
 Update this single backlog after each completed task. Use `Ready`, `In progress`,
 `Blocked`, or `Done`; a `Done` row must link to a report with reproducible
