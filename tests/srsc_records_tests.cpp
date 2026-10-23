@@ -102,9 +102,19 @@ int main() {
           file_match->ordered_index == 0 && sorted_match->ordered_index == 4, "order changes position, not record");
     check(!find_srsc_record_pair(lookup_records, ordered, 1, 3), "missing pair");
     check(!find_srsc_record_triple(lookup_records, ordered, {1, 2, 9}), "missing triple");
+    // Caller-supplied mappings are validated while searched: an unreachable
+    // bad index must not alter an already established first match.
+    const std::array<std::size_t, 2> match_then_bad{1, lookup_records.size()};
+    const auto early_match = find_srsc_record_pair(lookup_records, match_then_bad, 1, 2);
+    check(early_match && early_match->ordered_index == 0 && early_match->original_index == 1,
+          "first match does not inspect later order entries");
     const std::array<std::size_t, 1> bad_order{lookup_records.size()};
     try { (void)find_srsc_record_pair(lookup_records, bad_order, 1, 2); check(false, "bad ordering index"); }
     catch (const std::out_of_range&) {}
     check(make_srsc_record_order({}, SrscRecordOrder::stable_second_selector).empty(), "empty order");
+    try {
+        (void)make_srsc_record_order(lookup_records, static_cast<SrscRecordOrder>(42));
+        check(false, "unknown ordering");
+    } catch (const std::invalid_argument&) {}
     return failures == 0 ? 0 : 1;
 }

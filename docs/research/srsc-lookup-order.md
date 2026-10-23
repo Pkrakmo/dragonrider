@@ -494,6 +494,11 @@ tests cover unique/missing/duplicate ordering categories and malformed hash,
 path, table, and payload ranges. The tool emits no individual paths, hashes,
 selector values, record indexes, or payloads.
 
+On 2026-10-23, the tool's synthetic validation was further hardened to reject
+non-hex SHA-256 strings, empty or malformed inventories, and a non-directory
+input root. This changes only rejection behavior; it adds no new retail
+measurement or selector interpretation.
+
 ## Selected cross-kind table distance, 2026-10-23
 
 `measure_srsc_cross_kind_distance.py` independently hash-checks the same 178
