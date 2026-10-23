@@ -67,11 +67,20 @@ explicitly separated; raw outputs remain private.
 | Done | Map bounded window lifetime at 0x412350 | [Report](window-lifetime-2026-10-23.md); explicit callback recovery and raw cross-check |
 | Done | Map input setup at 0x4058d0 and selected ownership paths | [Report](input-initialization-2026-10-23.md); full runtime recovery remains unknown |
 | Done | Connect activation field and selected input vtable slots | [Bounded follow-up](input-activation-poll-boundary-2026-10-23.md); conditional static dispatch |
-| Ready | Resolve destructor registration/invocation | Trace 0x466d38 and initializer/exit ranges; do not assume atexit semantics |
-| Ready | Map input event-consumer contracts | Separate questions at 0x405cd0, 0x405d10 and 0x405fc0; preserve raw event uncertainty |
+| Done | Resolve normal-return destructor registration/invocation | [Registration and exit walk](input-exit-registration-2026-10-23.md); failure and exceptional exits remain conditional |
+| Done | Map input event-consumer contracts | [Three consumer boundaries](input-event-consumers-2026-10-23.md); raw event uncertainty preserved |
+| Done | Resolve input callback ownership across EXE/RFL | [Conditional module bridge and temporary capture](input-callback-binding-2026-10-23.md); selected runtime module unobserved |
+| Done | Map small RFL pointer callback | [Kinds, masks and downstream boundary](input-pointer-callback-2026-10-23.md); jump table independently checked |
+| Ready | Resolve downstream pointer-routing helpers | Trace 0x10128850 and 0x10128710 with receiver ownership; do not assume UI semantics |
+| Ready | Bound one action-code family in the large module callback | Select a narrow case in 0x1000c6c0; correlate its mapping producer before assigning gameplay labels |
+| Ready | Verify shutdown ordering at the module boundary | Check callback clear vs module/interface release, including early-init failure; normal process cleanup alone is insufficient |
 
 All new investigation commands and tool limitations are in the
 [lifecycle reproduction procedure](lifecycle-reproduction-2026-10-23.md).
+The later RFL investigations extend that procedure with a separately imported,
+hash-pinned module project and [bounded script](support/InspectPinnedRetailFunctions.java).
+This is a completed static platform/input research package, not completion of
+the engine or proof of original runtime compatibility. No original code was run.
 
 Update this single backlog after each completed task. Use `Ready`, `In progress`,
 `Blocked`, or `Done`; a `Done` row must link to a report with reproducible
