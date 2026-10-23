@@ -457,6 +457,68 @@ objdump -d -Mintel --start-address=0x45f3d0 --stop-address=0x45f4c3 research/bin
 The measurement emits aggregate counts only. The source files, inventory,
 disposable project and bounded Ghidra logs remain private.
 
+## Aggregate third-selector relationships, 2026-10-23
+
+`measure_srsc_third_selector_distribution.py` hash-checked all 178 private US
+inventory entries, validated every table and payload range, and emitted only
+kind labels plus aggregate counts. For selected cross-kind comparisons,
+every nonzero third selector of `0x0102`, `0x0200`, and `0x0302` has exactly
+one same-file second-selector match in `0x0101`, `0x0201`, and `0x0301`,
+respectively: 4,203, 3,221, and 1,561 records. There were no zero, missing, or
+multiple cases in those three selected cross-kind comparisons. Within the
+same kind, the nonzero-third unique/missing counts were `523/0` (`0x0101`),
+`274/3,929` (`0x0102`), `87/3,134` (`0x0200`), `451/2` (`0x0201`), `116/0`
+(`0x0301`), and `571/990` (`0x0302`); none had multiple matches.
+
+This is a same-file structural equality measurement, not a runtime lookup,
+selector-semantics, or cross-file-resolution claim. The tool does not emit
+paths, hashes, raw selector values, or payload bytes; its five synthetic tests
+cover hash, path, header, table, and range rejection.
+
+## Selected cross-kind table position, 2026-10-23
+
+`measure_srsc_cross_kind_order.py` hash-checked all 178 private US inventory
+entries and validates each header, table, and pre-table payload range before
+measuring only aggregate table positions. Every selected same-file relation is
+unique in every source-bearing file: 4,203 `0x0102` to `0x0101` relations in
+39 files, 3,221 `0x0200` to `0x0201` relations in 29 files, and 1,561
+`0x0302` to `0x0301` relations in 19 files. All `0x0101` targets precede their
+`0x0102` sources. For the other two pairs, targets precede sources in
+3,200/3,221 and 1,550/1,561 cases; sources precede targets in 21 and 11
+cases, respectively. There are no missing, duplicate, or same-position
+selected targets in this sample.
+
+These are file-table position counts, not evidence of lookup order, runtime
+loading sequence, selector semantics, or a format invariant. Four synthetic
+tests cover unique/missing/duplicate ordering categories and malformed hash,
+path, table, and payload ranges. The tool emits no individual paths, hashes,
+selector values, record indexes, or payloads.
+
+On 2026-10-23, the tool's synthetic validation was further hardened to reject
+non-hex SHA-256 strings, empty or malformed inventories, and a non-directory
+input root. This changes only rejection behavior; it adds no new retail
+measurement or selector interpretation.
+
+## Selected cross-kind table distance, 2026-10-23
+
+`measure_srsc_cross_kind_distance.py` independently hash-checks the same 178
+private US entries and validates safe paths, headers, tables, and every
+pre-table payload range. It measures only absolute table-index distance for
+the already-selected unique same-file relationships. For `0x0102` to
+`0x0101`, the 4,203 relations have distance buckets 12 (1), 42 (2--4), 68
+(5--16), and 4,081 (17+); all targets precede their sources. For `0x0200` to
+`0x0201`, the 3,221 relations yield 34, 5, 79, and 3,103 in those buckets;
+3,200 targets precede and 21 sources precede their targets. For `0x0302` to
+`0x0301`, the 1,561 relations yield 13, 51, 176, and 1,321; 1,550 targets
+precede and 11 sources precede targets. There are no zero-distance, missing,
+or ambiguous selected relations in the measured files.
+
+Distance is a serialized table-layout observation only. It does not establish
+runtime traversal, lookup order, loading sequence, selector meaning, or a
+format invariant. Four synthetic tests cover direction/distance buckets,
+missing and ambiguous targets, malformed inputs, stale hashes, and unsafe
+paths; output has no individual identifiers or payloads.
+
 ## Independent C++ lookup verification, 2026-10-19
 
 The test-only C++ probe receives bounded table bytes from an independent Python

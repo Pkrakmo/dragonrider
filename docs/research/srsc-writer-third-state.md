@@ -99,6 +99,68 @@ direct write through an aliased writer pointer. It therefore does not explain
 the nonzero third words in installed files or show how those files were
 produced.
 
+## Bounded writer-state recheck, 2026-10-23
+
+`TraceSrscWriterState.java` reran against the existing US retail Ghidra
+database in serialized `-process Drakan.exe -readOnly -noanalysis` mode. It
+reported the expected executable SHA-256 and Ghidra 12.1.4. The bounded
+instruction windows, independently corroborated with GNU objdump, show the
+constructor zeroing writer `+8` at `0x0045f59f`, the guarded setter storing its
+low-16-bit argument at `0x0045f5f0`, and the initializer loading that word at
+`0x0045f6b2` and storing it into table-record offset 4 at `0x0045f6b6`. The
+database reports one strict direct constructor call, one strict direct setter
+call, and ten strict direct initializer calls; it caps closer references at
+48. The known direct setter call at `0x00441e2d` pushes zero before the nearby
+initializer call.
+
+These are static instruction and database-reference observations. Direct
+xrefs omit indirect and virtual calls, and the report does not establish
+control-flow feasibility, object identity, state continuity, file production,
+or the third word's semantics.
+
+## Bounded closer recheck, 2026-10-23
+
+`TraceSrscRecordCloser.java` was run in serialized Ghidra 12.1.4
+`-process Drakan.exe -readOnly -noanalysis` mode against the same hash-pinned
+US retail executable. Ghidra reports the closer body as `0x0045f7a0` through
+`0x0045f803`. On its shown mode-2 path, it clears the active index, forms the
+record-table position from `14 * count`, obtains a file position, subtracts
+record offset 6, stores the result at record offset 10 (`0x0045f7eb` and
+`0x0045f7ee`), then increments writer `+0x10`. GNU objdump corroborates the
+last four instructions. The database's strict direct-CALL list reaches its
+cap of 48 and is explicitly truncated; a raw disassembly text scan finds 59
+direct calls, so neither list is a complete caller census.
+
+Bounded candidate initializer windows show `0x0040dd4c` calling the common
+initializer with dynamic second input and first selector `0x0102`,
+`0x0040e166` with `(0x0022, 0)`, and `0x004315f4` with `(0x0302, 0)`; their
+shown paths test the initializer return before continuing. The Ghidra database
+does not recover a containing function for the first callsite, which is why
+the script preserves an independent bounded instruction window. This is
+static evidence only: it does not establish reachability, successful writes,
+object identity, state continuity, output files, or field semantics.
+
+## Bounded payload-helper recheck, 2026-10-23
+
+`TraceSrscRecordWriteHelper.java` ran in serialized Ghidra 12.1.4
+`-process Drakan.exe -readOnly -noanalysis` mode against the hash-pinned US
+retail executable. It reports the common helper body as `0x0045f6f0` through
+`0x0045f743`. The shown helper requires writer mode 2 and active index not
+equal to -1 before it calls its imported transfer function through writer
+`+0x1c`; it returns zero only when that call succeeds and the reported
+transferred count equals the requested size. Raw objdump corroborates the
+precondition, call, transfer-result, and count-comparison instructions.
+
+The database's direct-CALL xref list reaches its explicit cap of 64, while a
+raw disassembly text scan finds 114 direct calls, so it is not a caller census.
+Bounded windows show the candidate `0x0102` path making ten consecutive
+requests of 4, 4, 108, 2, 2, 2, 4, 4, 4, and 2 bytes; the first shown payload
+helper calls in the candidate `0x0022` and `0x0302` paths follow visible
+initializer-success checks and request 4 and 16 bytes. These are static
+instruction facts only. They do not establish feasible execution, completed
+I/O, object or active-record continuity, file production, payload encoding,
+or selector and field semantics.
+
 ## Follow-up: the `0x0102` writer is a separate candidate
 
 On 2026-10-18, GNU objdump 2.45.1-5.fc43 was used to examine the same

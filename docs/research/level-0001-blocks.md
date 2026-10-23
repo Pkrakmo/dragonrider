@@ -127,6 +127,21 @@ in at least one query mode in addition to draw-chain ordering. The call from
 `0x0043fe40` supplies literal flag value 4 (`0x0043fe91`–`0x0043fef2`), so its
 query call does not enable the bit-`0x10` rejection branch.
 
+### Bounded direct-caller flag sweep, 2026-10-23
+
+GNU objdump 2.45.1-5.fc43 against the pinned US executable found 23 direct
+relative calls to `0x00420e10`: 17 supply literal flag `5`, five supply
+literal `4`, and one forwards a caller-derived value at `0x00420d93`. The
+apparent `[esp+0x2c]` source at `0x0044cb63` is its enclosing function's fifth
+argument; its sole direct caller supplies literal `5`. The literal categories
+set bit `0x04`, but neither sets `0x08`, `0x10`, or `0x20`. The bounded
+windows, full call-address list, hash, and reproduction procedure are in
+[the direct-caller report](level-0001-query-callers-2026-10-23.md).
+
+This is static direct-call evidence only. It does not classify the remaining
+dynamic flag, find indirect or virtual callers, establish reachability, assign
+a meaning to the flags, or establish the discriminator's runtime role.
+
 ## Per-entry cell pointer grid, 2026-10-18
 
 The pointer checked at `entry + 0x34` is used as a runtime cell-head array on

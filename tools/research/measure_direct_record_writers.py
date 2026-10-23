@@ -16,14 +16,23 @@ import subprocess
 INSTRUCTION = re.compile(r'^\s*([0-9a-f]+):\s+(?:[0-9a-f]{2}\s+)+(.+?)\s*$', re.I)
 CALL = re.compile(r'\bcall\s+0x([0-9a-f]+)\b', re.I)
 PUSH_IMMEDIATE = re.compile(r'\bpush\s+0x([0-9a-f]+)\b', re.I)
+# A preceding call may have consumed a different argument sequence, while an
+# unconditional transfer has no sequential fall-through.  Do not let either
+# contribute pushes to the next direct-call observation.  Conditional jumps
+# deliberately remain in the bounded window: the fall-through instructions
+# are still a possible sequential path and this text scan cannot prove which
+# path executed.
+BREAKS_LOOKBACK = re.compile(r'^\s*(?:call\b|(?:repz?\s+)?ret\b|jmp\b)', re.I)
 
 
 def measure(disassembly, target=0x45f600):
     """Return aggregate direct-call and up-to-three-immediate-push counts.
 
     x86 callers push arguments right-to-left, so reversing the nearby pushes
-    restores their source order.  This remains a deliberately bounded text
-    scan: it cannot recover register, memory, indirect, or distant arguments.
+    restores their source order.  The lookback stops at a prior call, return,
+    or unconditional jump to avoid crossing a distinct sequential call path.
+    This remains a deliberately bounded text scan: it cannot recover
+    register, memory, indirect, distant, or path-dependent arguments.
     """
     prior = []
     result = Counter()
@@ -52,7 +61,10 @@ def measure(disassembly, target=0x45f600):
                     result[f'selector_pair_{selectors[0]:04x}_{selectors[1]:04x}'] += 1
                 if len(selectors) == 3:
                     result[f'selector_triple_{selectors[0]:04x}_{selectors[1]:04x}_{selectors[2]:04x}'] += 1
-        prior.append(instruction)
+        if BREAKS_LOOKBACK.search(instruction):
+            prior.clear()
+        else:
+            prior.append(instruction)
     return result
 
 
