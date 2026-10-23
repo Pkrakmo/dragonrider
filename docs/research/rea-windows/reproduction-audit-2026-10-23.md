@@ -77,7 +77,7 @@ python3 docs/research/rea-windows/support/pe_metadata_probe.py "$DR_EXE"
 ```
 
 The script version is 1; SHA-256 of the supplied file:
-`9bc6d79919ff5c3453ebb4713eb7935626a7445c6ae75c6b45a0684b8424bc44`.
+`2eba125063b5d73adfeeeeb54bcf2df0e14fedd526dc0fac78e1cbe5a2cd7501`.
 It uses only Python's standard library. It rejects a noncanonical hash before
 PE parsing, accepts PE32 only, reads headers via e_lfanew, reads the import
 directory at optional-header offset 104, iterates 20-byte descriptors through
@@ -114,4 +114,3 @@ the PE import data; an ordinal's API name remains unresolved without additional
 evidence. The script deliberately prints aggregate counts rather than a bulk
 symbol/IAT export. Main report addresses and interpretations remain unchanged;
 today's rerun adds no new runtime or engine-semantics claim.
-
