@@ -108,3 +108,12 @@ then `0x456a80`, then `0x453be0`, always with `-process Drakan.exe -readOnly
 0x457f60..0x458267, 0x456a80..0x456c4a and 0x453be0..0x453c32.
 Only the selected paths above were independently checked; no complete
 constructor, protocol or transport semantics are claimed.
+
+## Later transport and queue follow-up
+
+The [transport report](transport-interface-2026-10-23.md) resolves the
+individual-send wrapper, payload mutation and external interface creation.
+The [receive report](receive-queue-2026-10-23.md) resolves record insertion
+and ownership through the existing consumer. These static boundaries do not
+prove delivery of a particular payload. Earlier open questions about those
+local paths should be read with these follow-ups.

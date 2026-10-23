@@ -92,3 +92,12 @@ cross-checked, not the entire large function or other selector semantics.
 
 Follow-up: [sender construction and fan-out](input-sender-boundary-2026-10-23.md)
 now resolve host +0x60 conditionally; transport and record insertion remain open.
+
+## Later transport and queue follow-up
+
+The [transport report](transport-interface-2026-10-23.md) resolves the
+individual-send wrapper, payload mutation and external interface creation.
+The [receive report](receive-queue-2026-10-23.md) resolves record insertion
+and ownership through the existing consumer. These static boundaries do not
+prove delivery of a particular payload. Earlier open questions about those
+local paths should be read with these follow-ups.
