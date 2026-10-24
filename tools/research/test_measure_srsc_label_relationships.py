@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 from measure_srsc_label_relationships import measure, payload_labels
-from measure_srsc_lookup import read_records
+from measure_srsc_lookup import read_records, read_snapshot
 
 
 class LabelRelationshipsTests(unittest.TestCase):
@@ -31,21 +31,19 @@ class LabelRelationshipsTests(unittest.TestCase):
             path = root / 'fixture'
             path.write_bytes(contents)
             entry = {'path': 'fixture', 'sha256': hashlib.sha256(contents).hexdigest()}
-            records = read_records(root, entry)
-            self.assertEqual(payload_labels(path, records), {0: b'A'})
+            data, records = read_snapshot(root, entry)
+            self.assertEqual(payload_labels(data, records), {0: b'A'})
             entry['sha256'] = '0' * 64
             with self.assertRaises(ValueError):
                 read_records(root, entry)
             bad = bytearray(contents)
             bad[12] = 3
-            path.write_bytes(bad)
             with self.assertRaises(ValueError):
-                payload_labels(path, records)
+                payload_labels(bytes(bad), records)
             bad = bytearray(contents)
             bad[-4:] = struct.pack('<I', 100000)
-            path.write_bytes(bad)
             with self.assertRaises(ValueError):
-                payload_labels(path, records)
+                payload_labels(bytes(bad), records)
 
     def test_payload_table_change(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -54,7 +52,7 @@ class LabelRelationshipsTests(unittest.TestCase):
             record = struct.pack('<HHHII', 0x101, 2, 0, 12, len(payload))
             path.write_bytes(b'SRSC' + struct.pack('<HIH', 0x100, 16, 1) + payload + record)
             with self.assertRaises(ValueError):
-                payload_labels(path, [(0x101, 1, 0)])
+                payload_labels(path.read_bytes(), [(0x101, 1, 0)])
 
 
 if __name__ == '__main__':

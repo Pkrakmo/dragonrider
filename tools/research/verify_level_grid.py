@@ -8,10 +8,12 @@ import json
 from pathlib import Path
 import subprocess
 import struct
+import tempfile
 import zlib
 
 from measure_level_blocks import measure
 from measure_level_source_ids import records
+from measure_level_0001 import safe_inventory_path
 
 
 def signed32(value):
@@ -62,39 +64,43 @@ def main():
     totals = Counter()
     ranges = [None, None, None, None]
     failures = []
-    for item in files:
-        try:
-            path = args.root / item['path']
-            data = path.read_bytes()
-            if hashlib.sha256(data).hexdigest() != item['sha256']:
-                raise ValueError('inventory hash mismatch')
-            index, payload = records(data)[(1, 0, 0)]
-            entries = scan(payload)
-            if args.inspector and entries:
-                selected = sorted({0, len(entries) // 2, len(entries) - 1})
-                for entry in selected:
-                    process = subprocess.run([str(args.inspector), '--level-grid', str(index), str(entry), str(path)],
-                                             capture_output=True, text=True)
-                    if process.returncode != 0 or output(entry, entries[entry]) not in process.stdout:
-                        raise ValueError('inspector grid mismatch: ' + process.stderr.strip())
-                    totals['inspector_entries'] += 1
-            for result in entries.values():
-                totals['entries'] += 1
-                totals['points'] += result['count']
-                totals['bit8'] += result['bit8']
-                totals['nonfinite_base_bits'] += (result['base'] & 0x7f800000) == 0x7f800000
-                extents = (result['origin_first'] * 2048,
-                           (result['origin_first'] + result['width']) * 2048,
-                           result['origin_second'] * 2048,
-                           (result['origin_second'] + result['height']) * 2048)
-                for i, value in enumerate(extents):
-                    if ranges[i] is None:
-                        ranges[i] = value
-                    else:
-                        ranges[i] = min(ranges[i], value) if i % 2 == 0 else max(ranges[i], value)
-            totals['files'] += 1
-        except (OSError, ValueError, struct.error, zlib.error) as error:
-            failures.append(f"{item['path']}: {error}")
+    root = args.root.resolve(strict=True)
+    with tempfile.TemporaryDirectory(prefix='dragonrider-level-grid-') as directory:
+        snapshot = Path(directory) / 'verified-level.lvl'
+        for item in files:
+            try:
+                path = safe_inventory_path(root, item['path'])
+                data = path.read_bytes()
+                if len(data) != item['size'] or hashlib.sha256(data).hexdigest() != item['sha256']:
+                    raise ValueError('inventory size or hash mismatch')
+                index, payload = records(data)[(1, 0, 0)]
+                entries = scan(payload)
+                if args.inspector and entries:
+                    selected = sorted({0, len(entries) // 2, len(entries) - 1})
+                    snapshot.write_bytes(data)
+                    for entry in selected:
+                        process = subprocess.run([str(args.inspector), '--level-grid', str(index), str(entry), str(snapshot)],
+                                                 capture_output=True, text=True)
+                        if process.returncode != 0 or output(entry, entries[entry]) not in process.stdout:
+                            raise ValueError('inspector grid mismatch: ' + process.stderr.strip())
+                        totals['inspector_entries'] += 1
+                for result in entries.values():
+                    totals['entries'] += 1
+                    totals['points'] += result['count']
+                    totals['bit8'] += result['bit8']
+                    totals['nonfinite_base_bits'] += (result['base'] & 0x7f800000) == 0x7f800000
+                    extents = (result['origin_first'] * 2048,
+                               (result['origin_first'] + result['width']) * 2048,
+                               result['origin_second'] * 2048,
+                               (result['origin_second'] + result['height']) * 2048)
+                    for i, value in enumerate(extents):
+                        if ranges[i] is None:
+                            ranges[i] = value
+                        else:
+                            ranges[i] = min(ranges[i], value) if i % 2 == 0 else max(ranges[i], value)
+                totals['files'] += 1
+            except (OSError, ValueError, KeyError, struct.error, zlib.error) as error:
+                failures.append(f"{item['path']}: {error}")
     print(f'Levels: {totals["files"]}/{len(files)}; entries={totals["entries"]}; grid points={totals["points"]}; '
           f'bit8={totals["bit8"]}; nonfinite base bit patterns={totals["nonfinite_base_bits"]}; '
           f'inspector comparisons={totals["inspector_entries"]}')

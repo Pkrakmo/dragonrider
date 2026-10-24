@@ -6,9 +6,11 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import zlib
 
 from measure_level_source_ids import records
+from measure_level_0001 import safe_inventory_path
 from verify_level_directory import decode as decode_level_directory
 
 
@@ -40,22 +42,23 @@ def main():
     manifest = json.loads(args.inventory.read_text(encoding='utf-8'))
     candidates = [f for f in manifest['files'] if f['path'].lower().endswith('.db')]
     total = 0
-    for item in candidates:
-        path = (root / item['path']).resolve(strict=True)
-        if not path.is_relative_to(root) or not path.is_file():
-            raise ValueError('inventory path escapes root or is not a file')
-        data = path.read_bytes()
-        if len(data) != item['size'] or hashlib.sha256(data).hexdigest() != item['sha256']:
-            raise ValueError('inventory length or hash mismatch')
-        entries = decode(data)
-        expected = f'Database descriptor version: 1\nDependencies: {len(entries)}\n'
-        for index, (ident, name) in enumerate(entries):
-            expected += f'Dependency {index}: id={ident} bytes={len(name)} crc32={zlib.crc32(name):08x}\n'
-        run = subprocess.run([str(args.inspector), '--database', str(path)],
-                             capture_output=True, text=True, check=True)
-        if run.stdout != expected:
-            raise ValueError('inspector output differs from independently decoded data')
-        total += len(entries)
+    with tempfile.TemporaryDirectory(prefix='dragonrider-database-descriptor-') as directory:
+        snapshot = Path(directory) / 'verified-descriptor.db'
+        for item in candidates:
+            path = safe_inventory_path(root, item['path'])
+            data = path.read_bytes()
+            if len(data) != item['size'] or hashlib.sha256(data).hexdigest() != item['sha256']:
+                raise ValueError('inventory length or hash mismatch')
+            entries = decode(data)
+            expected = f'Database descriptor version: 1\nDependencies: {len(entries)}\n'
+            for index, (ident, name) in enumerate(entries):
+                expected += f'Dependency {index}: id={ident} bytes={len(name)} crc32={zlib.crc32(name):08x}\n'
+            snapshot.write_bytes(data)
+            run = subprocess.run([str(args.inspector), '--database', str(snapshot)],
+                                 capture_output=True, text=True, check=True)
+            if run.stdout != expected:
+                raise ValueError('inspector output differs from independently decoded data')
+            total += len(entries)
     if not candidates:
         raise ValueError('no descriptors in inventory')
     print(f'matched {len(candidates)} hash-verified descriptors and {total} dependencies')

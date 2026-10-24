@@ -96,12 +96,24 @@ has 16 CRLF-separated lines. All four are ASCII without NUL or bare-LF bytes.
 A bounded-header check of that 1,052-byte `.pal` file observed a matching
 RIFF length, one `data` chunk of 1,032 bytes, version word `0x0300`, and an
 entry count of 256.
-If each entry is four bytes, the four-byte version/count header plus entries
-would use 1,028 chunk bytes, leaving four bytes unexplained; their role is
-unknown. This entry-size calculation is an inference, not a claim about how
-the game reads the resource. The tool classified the one `.mpi` and one
+The documented four-byte entry layout accounts for 1,028 of the declared
+1,032 `data` bytes; the remaining four bytes are unexplained. The tool
+classified the one `.mpi` and one
 `.tln` file only as generic data. The following selected input sizes and
 SHA-256 values were checked against the private US inventory and live files:
+
+On 2026-10-23, a follow-up against the same manifest-hash-verified `.pal`
+confirmed 256 distinct four-byte candidate entries, each with a zero fourth
+byte. The four unexplained trailing bytes contain one nonzero byte at trailer
+position 1 and do not equal any candidate entry. The documented simple Windows
+RIFF PAL layout is a `data` chunk containing a `LOGPALETTE` header followed by
+four-byte `PALETTEENTRY` records, so the 256-row interpretation is consistent
+with that specification. This file has four additional bytes inside the
+declared `data` chunk; their role remains unknown, so the structural match
+does not establish how the game consumes it. The bounded reproduction below
+verifies the manifest hash and reports aggregate measurements without printing
+entry data. See IBM and Microsoft's [Multimedia Programming Interface and Data
+Specifications 1.0, “Palette File Format”](https://www.mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/Docs/riffmci.pdf).
 
 | Relative path | Bytes | SHA-256 | `file` classification |
 | --- | ---: | --- | --- |
@@ -114,10 +126,273 @@ SHA-256 values were checked against the private US inventory and live files:
 | `English_-_Multi-Player_Data_Files/System/mpdrakan.mpi` | 1,620 | `40f742ef8c8968f63a2326c812c4ddd66a86f943f9f55493b59e370b86f2ae5b` | generic data |
 | `English_-_Common_Data_Files/System/drakan.tln` | 32 | `19d261e827d92b0c58d2c606e9edc124b7373d58675ba56d5f996efafc051166` | generic data |
 
+## Mplayer palette loading path, static review, 2026-10-23
+
+The inventory-hash-verified `English_-_Mplayer_Files/System/mIC.exe`
+(271,872 bytes, SHA-256
+`074398d985605edb5d88117ff47c1c4e17936f630ba998d15a7bfdc1f21f1e00`)
+contains the literal format string `%s\mic.pal` at file offset `0x2dedc`.
+GNU `strings` 2.45.1-5.fc43 found it, and GNU `objdump` 2.45.1-5.fc43
+disassembled a code reference at `0x00405D7B` that pushes its mapped virtual
+address `0x0042FCDC`. In the same function, instructions call imported
+`sprintf` at `0x00405D87`, `fopen` at `0x00405D9C`, `fread` at `0x00405DBE`,
+and `fclose` at `0x00405DD8`. The `fopen` mode string is `rb`. The function
+has one direct caller in the full disassembly, at `0x00416979`, and reads at
+most `0xBB8` bytes; if the returned byte count exceeds `0x400`, it
+uses a buffer starting at byte offset 24 to process 256 records at four-byte
+strides. It constructs a `LOGPALETTE` header with version `0x0300` and count
+256, copies the first three bytes of each input record into a new palette
+entry, sets each entry's fourth byte to zero, and passes the structure to
+imported `CreatePalette`. It also calls `GetNearestPaletteIndex` for each
+source color. This path therefore does not consume the four trailer
+bytes as palette entries, though it does not establish their intended role.
+The branch threshold is 1,025 bytes, while the 24-byte prefix plus 256 rows
+requires 1,048 bytes. An input between those lengths would enter the loop with
+fewer bytes reported by `fread` than the loop consumes; malformed-input
+behavior is not established. The measured retail file is 1,052 bytes.
+The import table also names `SetPaletteEntries`, `RealizePalette`, and
+`UpdateColors`; nearby text includes `MIC::SetMasterPalette invalidating
+mainframe`. The disassembly establishes a static code path that formats and
+opens a `mic.pal` path and processes the palette records. It does not establish
+that this function executes at runtime or that the game executable loads this
+Mplayer component. The executable was not run.
+
+Recheck the source hash and relevant disassembly/imports with:
+
+```sh
+python3 - <<'PY'
+import hashlib, json, pathlib
+root = pathlib.Path('research/installed/us')
+manifest = json.loads(pathlib.Path('research/exports/asset-inventory/us.json').read_text())
+entry = next(e for e in manifest['files'] if e['path'] ==
+             'English_-_Mplayer_Files/System/mIC.exe')
+data = (root / entry['path']).read_bytes()
+assert len(data) == entry['size'] == 271872
+assert hashlib.sha256(data).hexdigest() == entry['sha256'] == \
+       '074398d985605edb5d88117ff47c1c4e17936f630ba998d15a7bfdc1f21f1e00'
+print({'size': len(data), 'sha256_matches_inventory': True})
+PY
+strings -a -t x research/installed/us/English_-_Mplayer_Files/System/mIC.exe \
+  | rg 'mic\.pal'
+objdump -d -Mintel --start-address=0x405d49 --stop-address=0x405e40 \
+  research/installed/us/English_-_Mplayer_Files/System/mIC.exe
+objdump -p research/installed/us/English_-_Mplayer_Files/System/mIC.exe \
+  | rg 'fopen|fread|fclose|CreatePalette|GetNearestPaletteIndex'
+```
+
 The original files were not modified.
 These observations classify bytes and file contents only: they do not show
-which files the game loads, the purpose of the text documents, or how the
-palette is consumed. Other editions and extraction completeness remain open.
+which files the game loads or the purpose of the text documents. The Mplayer
+palette reference is static only. Other editions and installed-tree
+completeness remain open.
+
+## Disc extraction tree coverage, 2026-10-23
+
+Compared the logical paths, node types and file sizes listed by `xorriso`
+against each existing extracted tree. Both US and UK images list 2,033 files
+and 86 directories including the ISO root; each extracted tree contains all
+2,033 files and all 85 non-root directories, with matching file sizes, no
+extra paths, and no missing or mismatched non-root entries. The sole set
+difference when retaining the ISO root is the expected root directory, which
+has no corresponding entry inside the extraction directory. This establishes
+path/type/size coverage for the extraction trees. As a content-integrity check,
+each image was also freshly extracted by xorriso into a new `/tmp` directory;
+all 2,033 regular files per edition matched the existing extraction byte for
+byte by SHA-256, with no missing, extra, type-mismatched, size-mismatched, or
+hash-mismatched nodes. This confirms the existing trees against a fresh
+extraction of the same ISO using xorriso; it does not independently verify
+xorriso itself or establish install completeness for files outside the disc
+filesystem. The US and UK ISO inputs have the same SHA-256 recorded above
+(`256a4e51020b06c551cc310895e245f1df8790be0af230711a727ecbf29d079c`). The
+fresh extracts used xorriso 1.5.8.pl02.
+
+The bounded listing comparison can be repeated with:
+
+```sh
+iso_tmp=$(mktemp -d /tmp/dragonrider-iso-check.XXXXXX)
+printf '%s  %s\n' \
+  '256a4e51020b06c551cc310895e245f1df8790be0af230711a727ecbf29d079c' research/discs/us/drakan.iso \
+  '256a4e51020b06c551cc310895e245f1df8790be0af230711a727ecbf29d079c' research/discs/uk/drakan.iso \
+  | sha256sum -c -
+for edition in us uk; do
+  xorriso -indev "research/discs/$edition/drakan.iso" -find / -exec lsdl \
+    > "$iso_tmp/$edition-iso-list.txt" 2> "$iso_tmp/$edition-xorriso.log"
+  find "research/extracted/$edition" -mindepth 1 \
+    \( -type d -printf 'd 0 %P\n' -o -type f -printf 'f %s %P\n' \) \
+    > "$iso_tmp/$edition-extracted-list.txt"
+done
+mkdir "$iso_tmp/us-reextract" "$iso_tmp/uk-reextract"
+xorriso -osirrox on -indev research/discs/us/drakan.iso -extract / "$iso_tmp/us-reextract"
+xorriso -osirrox on -indev research/discs/uk/drakan.iso -extract / "$iso_tmp/uk-reextract"
+diff -qr research/extracted/us "$iso_tmp/us-reextract"
+diff -qr research/extracted/uk "$iso_tmp/uk-reextract"
+```
+
+For the comparison, parse each xorriso `lsdl` row's node type, regular-file
+byte size and single-quoted path; remove the leading slash and exclude the root
+entry. Normalize directory sizes to zero and compare the records to `find`
+output relative to the extraction root. Paths
+with quoting characters should be reviewed explicitly before relying on a
+text parser. The measured counts above came from a Python comparison of those
+records; the complete paths remain in the private local research tree. The
+fresh-extraction `diff -qr` commands above emit no output when the existing and
+new trees match byte-for-byte.
+
+## InstallShield Mplayer PE group, 2026-10-23
+
+`unshield c` lists the InstallShield component `Mplayer.com Files`, and
+`unshield g` lists the file group `English - Mplayer Files`. The `unshield l`
+listing contains 21 EXE, DLL and OCX entries under that group. The group was
+extracted into `/tmp` (110 files in all); each of the 21 extracted PE members
+matched its installed counterpart in size and SHA-256, and each installed
+counterpart matched the private inventory. This directly confirms that these
+installed PE files are byte-identical to the contents extracted from the
+InstallShield cabinet. `unshield t` also completed successfully for all 110
+group members. This verifies decoder success, not a cabinet-authenticated
+checksum for every file. It does not establish authorship, license, or runtime
+necessity.
+The US input cabinet `Setup/data1.cab` is 280,876,551 bytes with SHA-256
+`d6b78b161eb5ed494ae76dae6c157b29c10822dc50b087708ec0de4bd6e08fc8`, checked
+against the private US disc inventory. Extraction used unshield 1.6.2.
+
+Reproduce the group enumeration with:
+
+```sh
+cab_tmp=$(mktemp -d /tmp/dragonrider-mplayer-check.XXXXXX)
+printf '%s  %s\n' 'd6b78b161eb5ed494ae76dae6c157b29c10822dc50b087708ec0de4bd6e08fc8' \
+  research/extracted/us/Setup/data1.cab | sha256sum -c -
+unshield c research/extracted/us/Setup/data1.cab
+unshield g research/extracted/us/Setup/data1.cab
+unshield -g 'English - Mplayer Files' t research/extracted/us/Setup/data1.cab
+unshield l research/extracted/us/Setup/data1.cab \
+  | rg -i 'English - Mplayer Files\\.*\.(exe|dll|ocx)$' \
+  | rg 'English - Mplayer Files'
+unshield -g 'English - Mplayer Files' \
+  -d "$cab_tmp" x research/extracted/us/Setup/data1.cab
+```
+
+Run the next block in the same shell session so it can use `cab_tmp`, then
+verify the 21 PE members against the installed inventory:
+
+```sh
+CAB_TMP="$cab_tmp" python3 - <<'PY'
+import hashlib, json, pathlib
+import os
+manifest = json.loads(pathlib.Path('research/exports/asset-inventory/us.json').read_text())
+installed = pathlib.Path('research/installed/us')
+extracted = pathlib.Path(os.environ['CAB_TMP']) / 'English_-_Mplayer_Files'
+checked = 0
+for entry in manifest['files']:
+    relative = pathlib.Path(entry['path'])
+    if relative.parts[0] != 'English_-_Mplayer_Files' or relative.suffix.lower() not in {'.exe', '.dll', '.ocx'}:
+        continue
+    member = extracted.joinpath(*relative.parts[1:]).read_bytes()
+    current = (installed / relative).read_bytes()
+    assert len(member) == len(current) == entry['size']
+    assert hashlib.sha256(member).hexdigest() == hashlib.sha256(current).hexdigest() == entry['sha256']
+    checked += 1
+assert checked == 21
+print({'cabinet_PE_members_verified': checked, 'size_and_hash_matches': checked})
+PY
+```
+
+The corresponding UK cabinet listing also contains 21 PE entries in this
+group. Temporary extracted files were kept outside the repository; original
+media and installed files were read only.
+
+## Common-data ICO container check, 2026-10-23
+
+The inventory entry for
+`English_-_Common_Data_Files/System/LevelFileList.ico` matches the installed
+file at 1,078 bytes and SHA-256
+`cf5d11796e7bc3281c2b73b610b180ee433ca69cfdc8fa8474053686291b6dfe`. A
+standard-library bounds check observes an ICO directory with two images. Their
+headers describe 32×32 and 16×16, one plane, 4 bits per pixel, 40-byte DIB
+headers, and BI_RGB compression. The embedded image ranges fit the file and
+leave no trailing bytes. This identifies container structure only; it does not
+establish the ICO's consumer, visual contents, or runtime use.
+
+Reproduce from the repository root. The command verifies size and SHA-256
+against the private manifest, checks directory and DIB bounds, and prints only
+aggregate header fields:
+
+```sh
+python3 - <<'PY'
+import hashlib, json, pathlib, struct
+root = pathlib.Path('research/installed/us')
+manifest = json.loads(pathlib.Path('research/exports/asset-inventory/us.json').read_text())
+entry = next(e for e in manifest['files'] if e['path'] == 'English_-_Common_Data_Files/System/LevelFileList.ico')
+data = (root / entry['path']).read_bytes()
+assert len(data) == entry['size'] and hashlib.sha256(data).hexdigest() == entry['sha256']
+reserved, kind, count = struct.unpack_from('<HHH', data)
+assert reserved == 0 and kind == 1 and count == 2 and 6 + 16 * count <= len(data)
+images, ends = [], []
+for i in range(count):
+    w, h, colors, zero, planes, bpp, size, offset = struct.unpack_from('<BBBBHHII', data, 6 + 16 * i)
+    w, h = w or 256, h or 256
+    assert zero == 0 and offset <= len(data) and size <= len(data) - offset and size >= 40
+    dib_size = struct.unpack_from('<I', data, offset)[0]
+    assert dib_size == 40 and dib_size <= size
+    dib_w, dib_h, dib_planes, dib_bpp, compression, image_size = struct.unpack_from('<iiHHII', data, offset + 4)
+    assert dib_w == w and dib_h == 2 * h and dib_planes == 1 and compression == 0
+    images.append({'width': w, 'height': h, 'planes': dib_planes, 'bits_per_pixel': dib_bpp, 'dib_bytes': size, 'compression': 'BI_RGB'})
+    ends.append(offset + size)
+assert max(ends) == len(data)
+print({'file_bytes': len(data), 'sha256_matches_manifest': True, 'image_count': count, 'images': images, 'trailing_bytes': len(data) - max(ends)})
+PY
+```
+
+## Mplayer PE version-resource metadata, 2026-10-23
+
+The 21 PE files under the extracted `English_-_Mplayer_Files` group were
+rechecked against size and SHA-256 values in the private 337-file US inventory;
+all 21 matched. `wrestool` 0.32.3 listed resource types for every file without
+error: 12 files have one numeric type-16 (VERSION) resource each, while none
+has a numeric type-24 (manifest) resource. Raw VERSION resources from those
+12 files were extracted with `wrestool -x -R -t 16`; GNU `strings` 2.45.1
+found file-description and file-version strings in each. Three resources have
+a nonempty `CompanyName` string: two say `Mpath Interactive, Inc.` and one
+says `Pocket Soft, Inc.`. The other 18 files have no nonempty company-name
+string in their VERSION resource or no VERSION resource. These are embedded
+metadata claims, not proof of software authorship, license, runtime use, or
+installation. In particular, the absence of an embedded manifest resource
+does not show that a component needs no external manifest. No binary was run.
+
+A second pass paired the UTF-16LE strings in each extracted VERSION resource
+with their preceding field labels. All 12 resources contain `FileDescription`
+and `ProductName`, each with 12 distinct values; `FileVersion` and
+`ProductVersion` each have five distinct values. Eleven contain an
+`OriginalFilename` field. In `Sound.ocx`, the embedded `FileVersion` is
+`0, 6, 0, 2` while `ProductVersion` is `0, 6, 0, 1`; the discrepancy is
+recorded as metadata only and does not establish a build or packaging issue.
+The per-file resources were extracted only to a temporary directory, and all
+21 PE inputs were checked against the private inventory before inspection.
+
+The inventory membership and hashes can be rechecked with
+`tools/research/inventory_retail.py` and the private manifest comparison above.
+To recount VERSION-resource-bearing files and inspect their embedded strings,
+run this bounded read-only shell procedure from the repository root:
+
+```sh
+find research/installed/us/English_-_Mplayer_Files -type f \
+  \( -iname '*.exe' -o -iname '*.dll' -o -iname '*.ocx' \) -print0 |
+while IFS= read -r -d '' pe; do
+  listing=$(wrestool -l "$pe") || exit 1
+  if printf '%s\n' "$listing" | rg -q '^--type=16\b'; then
+    printf '%s\n' "$listing" | rg '^--type=16\b'
+  fi
+done
+
+resource_dir=$(mktemp -d /tmp/dragonrider-mplayer-version-XXXXXXXX)
+wrestool -x -R -t 16 -o "$resource_dir" \
+  research/installed/us/English_-_Mplayer_Files/System/Mplayer.dll
+find "$resource_dir" -type f -print0 | xargs -0 strings -el
+```
+
+This procedure reports embedded strings for one example DLL; the recorded
+12-file aggregate was produced by applying the same extraction to each
+type-16-bearing file. It remains an inventory of bundled PE metadata, not a
+runtime or licensing determination.
 
 On 2026-10-21, bounded inspection of the two remaining generic-data files
 confirmed their manifest sizes and SHA-256 values above. `mpdrakan.mpi` has a
@@ -138,6 +413,71 @@ indirect file access, optional modules, or use by another executable.
 GNU `strings` and `objdump` 2.45.1-5.fc43 were used; the executable SHA-256
 is recorded in the research baseline and was rechecked for this scan.
 
+A separate 2026-10-23 printable-byte scan of all 21 size/SHA-256-verified PE
+files in the Mplayer extraction group found `.mpi` substrings in `mIC.exe`,
+`mpfaux.dll`, `mpics.dll`, and `mpreal.dll`. `mIC.exe` contains generic text
+about fetching an MPI file and a temporary `.mpi` name; DLL matches include
+`extra.mpi` and `default.mpi` strings. The scan found neither the exact
+`mpdrakan.mpi` name nor `.tln`/`drakan.tln` in those 21 files, in ASCII or
+UTF-16LE form. These generic extension references do not show that any listed
+component reads the installed `mpdrakan.mpi`, identify its format, or establish
+network behavior. No binary was executed. The new
+`tools/research/scan_mplayer_pe_references.py` verifies all 21 candidate PE
+files against the private inventory, rejects unsafe or stale paths/hashes and
+files above its 16 MiB per-file limit, and prints only target-substring match
+filenames; its three synthetic tests cover matching, completeness, stale,
+oversized and symlink cases.
+
+## Static PE import relationships, 2026-10-23
+
+GNU `objdump` 2.45.1-5.fc43 reported import tables for all 22 installed PE
+files (the 21 Mplayer-group files and `Drakan.exe`), after each file's size and
+SHA-256 matched the private 337-file inventory. `Drakan.exe` statically imports
+DirectDraw, DirectInput, DirectSound, WinSock 2, and Windows system libraries;
+it has no static import naming an Mplayer-group PE such as `Mplayer.dll`,
+`Mcp.dll`, or an OCX. Within the Mplayer group, nine PE import tables name
+`Mplayer.dll`, four name `Mcp.dll`, and two name `Dialogs.dll`. This supports
+an internal dependency structure in that extraction group, but the absence of
+these names from `Drakan.exe`'s static imports does not rule out dynamic loading
+or indirect use. A hash-verified case-insensitive scan of the retail executable
+also found none of the 21 Mplayer PE basenames in ASCII or UTF-16LE printable
+form. This bounded non-match cannot rule out constructed names or indirect
+loading. No PE was executed.
+
+The aggregate can be reproduced from the hash inventory with this read-only
+check; it prints only file basenames and imported DLL names:
+
+```sh
+python3 - <<'PY'
+import hashlib, json, pathlib, re, subprocess
+root = pathlib.Path('research/installed/us')
+entries = json.loads(pathlib.Path('research/exports/asset-inventory/us.json').read_text())['files']
+images = [e for e in entries if pathlib.Path(e['path']).suffix.lower() in {'.exe', '.dll', '.ocx'}]
+assert len(images) == 22
+snapshots = {}
+for e in images:
+    path = root / e['path']
+    data = path.read_bytes()
+    assert len(data) == e['size'] and hashlib.sha256(data).hexdigest() == e['sha256']
+    snapshots[e['path']] = data
+    report = subprocess.run(['objdump', '-p', str(path)], check=True, capture_output=True, text=True).stdout
+    imports = sorted(set(re.findall(r'^\s*DLL Name:\s*(.+?)\s*$', report, re.M | re.I)), key=str.casefold)
+    print(path.name, ', '.join(imports) if imports else '(none reported)')
+mplayer = [e for e in images if e['path'].startswith('English_-_Mplayer_Files/')]
+game = next(e for e in images if e['path'] == 'English_-_Program_Files/Drakan.exe')
+game_bytes = snapshots[game['path']]
+names = {pathlib.Path(e['path']).name for e in mplayer}
+for encoding in ('ascii', 'utf16le'):
+    hits = []
+    for name in names:
+        raw = name.lower().encode()
+        needle = raw if encoding == 'ascii' else b''.join(bytes((b, 0)) for b in raw)
+        if needle in game_bytes.lower():
+            hits.append(name)
+    print('Drakan.exe', encoding, sorted(hits, key=str.casefold))
+PY
+```
+
 Reproduce the bounded observations without printing the full `.mpi` strings:
 
 ```sh
@@ -152,6 +492,10 @@ if strings -a -t x research/binaries/us/Drakan.exe | rg -i '\.mpi|mpdrakan|\.tln
 else
   echo 'No matching literal in printable strings'
 fi
+python3 tools/research/scan_mplayer_pe_references.py research/installed/us \
+  research/exports/asset-inventory/us.json
+python3 -m unittest discover -s tools/research \
+  -p 'test_scan_mplayer_pe_references.py' -v
 objdump -p research/binaries/us/Drakan.exe | rg 'CreateFileA'
 ```
 
@@ -193,11 +537,34 @@ for entry in manifest['files']:
 PY
 ```
 
-The `.pal` header measurements can be reproduced without printing palette
-entries:
+The `.pal` measurements can be reproduced without printing palette entries:
 
 ```sh
-python3 -c 'import pathlib,struct; b=pathlib.Path("research/installed/us/English_-_Mplayer_Files/System/mic.pal").read_bytes(); riff=struct.unpack_from("<I",b,4)[0]; chunk=struct.unpack_from("<I",b,16)[0]; version,count=struct.unpack_from("<HH",b,20); expected=4+4*count; print({"file_bytes":len(b),"riff_size_plus_8":riff+8,"form":b[8:12].decode(),"chunk":b[12:16].decode(),"chunk_size":chunk,"version_word":version,"entry_count":count,"expected_entries_and_header":expected,"chunk_extra_bytes":chunk-expected}); assert riff+8==len(b) and chunk==len(b)-20 and chunk>=expected'
+python3 - <<'PY'
+import hashlib, json, pathlib, struct
+root = pathlib.Path('research/installed/us')
+manifest = json.loads(pathlib.Path('research/exports/asset-inventory/us.json').read_text())
+entry = next(e for e in manifest['files'] if e['path'] ==
+             'English_-_Mplayer_Files/System/mic.pal')
+data = (root / entry['path']).read_bytes()
+assert len(data) == entry['size']
+assert hashlib.sha256(data).hexdigest() == entry['sha256']
+assert data[:4] == b'RIFF' and data[8:12] == b'PAL '
+assert data[12:16] == b'data'
+riff_size, chunk_size = struct.unpack_from('<II', data, 4)[0], struct.unpack_from('<I', data, 16)[0]
+version, count = struct.unpack_from('<HH', data, 20)
+assert riff_size + 8 == len(data) and chunk_size == len(data) - 20
+assert version == 0x0300 and count == 256
+end = 24 + count * 4
+entries, trailer = [data[24 + 4*i:28 + 4*i] for i in range(count)], data[end:]
+assert len(trailer) == 4
+print({'file_bytes': len(data), 'sha256_matches_inventory': True,
+       'candidate_entry_count': len(entries), 'distinct_candidate_entries': len(set(entries)),
+       'entries_with_nonzero_fourth_byte': sum(row[3] != 0 for row in entries),
+       'trailing_bytes': len(trailer),
+       'trailing_nonzero_positions': [i for i, byte in enumerate(trailer) if byte],
+       'trailer_matches_candidate_entry': trailer in entries})
+PY
 ```
 
 On 2026-10-17 the GCC-built `dragonrider_inspect` validated all 178 SRSC

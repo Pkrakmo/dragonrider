@@ -36,6 +36,15 @@ and third words are retained without semantic names. The parser accepts other
 group sizes, zero counts, opaque tails and out-of-range candidate indices where
 structurally safe; that is not a claim about game behavior.
 
+On 2026-10-23, the hash-pinned `verify_srsc_read_helper_callers.py` added
+instruction anchors for this sequence. It confirms the 2-byte group-count read
+at `0x00424918`, the 6-byte per-group header request at `0x0042495d`, and the
+second request at `0x0042499f`, whose size is computed as `10 *` the middle
+16-bit header word. The following loop at `0x004249c2`–`0x004249fd` loads
+fields at offsets 0, 2 and 6, advances by 10 bytes, and decrements the count.
+This is an independent raw-disassembly check of selected instructions, not a
+runtime test or evidence for meanings of the retained words.
+
 The helpers at `0x0045f270`, `0x0045f2d0`, `0x0045f370`, and `0x0045f3a0`
 show index-based record seeking, a bounded read budget and four- and two-byte
 reads. Actual errors and malformed-file acceptance were not reproduced. The
@@ -86,10 +95,14 @@ model or texture was visually verified.
 The C++ reader accepts an explicit record pair; it neither applies the model
 version gate nor determines a runtime lookup or source association. See
 [ADR 0018](../decisions/0018-model-geometry-inspection.md). The independent
-Python script verifies each inventory hash, sequences and ranges, then can
-compare all pairs with an inspector; it does not require private fixtures in
-the source tree. Tests use synthetic data, including malformed and hostile
-counts, an out-of-range candidate index, zero groups and opaque tails.
+Python script verifies the inventory file count, rejects duplicate normalized
+paths and symlink components, and checks each selected file's size and hash
+from the same byte snapshot it decodes. For inspector comparisons it writes
+that verified snapshot to a temporary file and passes the snapshot to the
+inspector, avoiding a second read of the private original. Six synthetic tests
+cover malformed and hostile counts, an out-of-range candidate index, zero
+groups, opaque tails, inventory metadata, unsafe paths, and snapshot handoff;
+private fixtures are not required in the source tree.
 
 ## Reproduction
 
@@ -99,6 +112,7 @@ objdump -d -Mintel --start-address=0x4245d0 --stop-address=0x424682 research/bin
 objdump -d -Mintel --start-address=0x424760 --stop-address=0x424a25 research/binaries/us/Drakan.exe
 objdump -d -Mintel --start-address=0x45f270 --stop-address=0x45f3cb research/binaries/us/Drakan.exe
 objdump -s --start-address=0x475600 --stop-address=0x475604 research/binaries/us/Drakan.exe
+python3 tools/research/verify_srsc_read_helper_callers.py research/binaries/us/Drakan.exe
 python3 tools/research/verify_model_geometry.py research/installed/us research/exports/asset-inventory/us.json --inspector build/debug/dragonrider_inspect
 python3 tools/research/verify_model_geometry.py research/installed/us research/exports/asset-inventory/us.json --inspector build/release/dragonrider_inspect
 python3 -m unittest discover -s tools/research -p 'test_verify_model_geometry.py'

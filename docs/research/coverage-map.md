@@ -14,9 +14,9 @@ python3 tools/research/verify_coverage_map.py docs/research/coverage-map.json
 
 | Topic | Layout | Loader | Runtime | Implementation | Validation | Next smallest question |
 | --- | --- | --- | --- | --- | --- | --- |
-| Retail data track | Measured | N/A | N/A | N/A | Private | Extraction completeness |
+| Retail data track | Measured | N/A | N/A | N/A | Private | Installed files outside disc coverage |
 | CD audio | Measured | N/A | Unknown | None | Private | Audibility/cause of tail difference |
-| Resource inventory | Measured | Unknown | Unknown | None | Private | Classify remaining generic files |
+| Resource inventory | Measured | Unknown | Unknown | None | Private | Loader execution and generic files |
 | SRSC table | Bounded | Observed | Unknown | Diagnostic | Private | Record-field semantics |
 | SRSC `0x0102` | Bounded | Static partial | Unknown | Diagnostic | Private | Tail grammar or proven consumer |
 | SRSC `0x0302` | Bounded | Static partial | Unknown | Diagnostic | Private | Playback-path dispatch |

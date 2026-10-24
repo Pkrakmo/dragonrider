@@ -2,12 +2,17 @@
 """Synthetic parsing and inventory checks for level-entry mode measurement."""
 
 import hashlib
+import io
+import json
 from pathlib import Path
 import struct
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from unittest.mock import patch
 
-from measure_level_entry_modes import decode, level_inventory_entries, measure, read_verified_level
+from measure_level_entry_modes import (decode, level_inventory_entries, main, measure,
+                                       read_verified_level)
 
 
 def payload(*, discriminator=2, flag=0, tail=b''):
@@ -75,6 +80,28 @@ class LevelEntryModesTests(unittest.TestCase):
             level_inventory_entries([dict(entry, sha256='g' * 64)])
         with self.assertRaisesRegex(ValueError, 'entry'):
             level_inventory_entries(['bad'])
+
+    def test_cli_emits_machine_readable_measurement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sample = srsc([((1, 0, 0), payload(discriminator=2, flag=2))])
+            level = root / 'sample.lvl'
+            level.write_bytes(sample)
+            inventory = root / 'inventory.json'
+            inventory.write_text(json.dumps({'files': [{
+                'path': 'sample.lvl', 'status': 'examined', 'file_size': len(sample),
+                'sha256': hashlib.sha256(sample).hexdigest(),
+            }]}), encoding='utf-8')
+            output = io.StringIO()
+            with patch('sys.argv', ['measure_level_entry_modes.py', str(root), str(inventory)]), \
+                    redirect_stdout(output):
+                main()
+            report = json.loads(output.getvalue())
+            self.assertEqual(report['files_examined'], 1)
+            self.assertEqual(report['entries'], 1)
+            self.assertEqual(report['cross_discriminator_eq_2_and_flag_bit_1'], {
+                'discriminator_eq_2=True,flag_bit_1=True': 1,
+            })
 
 
 if __name__ == '__main__':

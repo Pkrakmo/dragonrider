@@ -80,3 +80,18 @@ python3 tools/research/verify_texture_rows.py build/debug/dragonrider_inspect re
 All 5,993 row lengths and CRC32 values matched. CRC32 is not collision-resistant;
 this is a useful cross-check, not proof of rendered appearance or a substitute
 for validating other editions. The private manifest and assets remain local.
+
+## Inspector snapshot recheck, 2026-10-23
+
+`verify_texture_rows.py` now checks each input file's manifest SHA-256, decodes
+selected rows from those same bytes, and gives that exact snapshot to the
+inspector through a temporary file. Two synthetic verifier tests passed,
+including stale-hash rejection. Both GCC debug and release inspectors matched
+the independently calculated lengths and CRC32 values for all 5,993 records
+again. This removes the prior second read of each source path during the
+comparison; CRC32 and these samples do not establish rendered correctness.
+
+```sh
+python3 tools/research/verify_texture_rows.py build/debug/dragonrider_inspect research/installed/us research/exports/selector-0040-samples/us.json
+python3 tools/research/verify_texture_rows.py build/release/dragonrider_inspect research/installed/us research/exports/selector-0040-samples/us.json
+```

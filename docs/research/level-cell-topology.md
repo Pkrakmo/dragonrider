@@ -98,6 +98,15 @@ python3 tools/research/verify_level_cells.py research/installed/us research/expo
 python3 tools/research/verify_level_cells.py research/installed/us research/exports/asset-inventory/us.json --inspector build/release/dragonrider_inspect
 ```
 
+## Verified snapshot comparison recheck, 2026-10-23
+
+The cell verifier now validates each inventory path, size, and SHA-256, parses
+the selected cells from those bytes, then gives the inspector a temporary
+snapshot of the same bytes. Debug and release builds each matched 116 selected
+comparisons across all 23 US levels while reproducing 542,791 cells. The
+selected normal and mode-1 outputs remain candidate topologies as described
+above; this change only makes comparison inputs reproducible.
+
 For Ghidra, follow the disposable-project procedure in [the block trace](level-0001-blocks.md),
 substitute `TraceLevelCellTopology.java`, use fresh private logs, and serialize
 project access. See [ADR 0015](../decisions/0015-level-cell-candidates.md).

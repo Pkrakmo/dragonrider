@@ -86,3 +86,27 @@ python3 tools/research/verify_texture_inspector.py build/release/dragonrider_ins
 
 This compares reported header fields; it does not verify a texture decoder or
 the correctness of the pixel data.
+
+## Single-snapshot recheck, 2026-10-23
+
+The candidate prefix scanner now calculates SHA-256 and reads record prefixes
+from one in-memory input snapshot. `measure_selector_0040.py` receives that
+snapshot and applies its bounded raw/zlib checks to slices from the same bytes,
+avoiding a second path open after inspection. Fresh scans reproduced 39 files,
+5,993 selected records, 5,991 complete zlib streams with decoded lengths
+matching the measured product, and two zero-word records. The prefix test and
+both selector measurement tests passed. Each fresh output compared
+byte-for-byte with its earlier private counterpart. Output remains
+aggregate/private as before; this changes provenance consistency only.
+
+The independent `verify_texture_inspector.py` comparison now checks each
+source file's manifest SHA-256 and passes those exact bytes to the inspector
+through a per-file temporary snapshot. Two synthetic tests passed, including
+a stale-hash rejection; the debug and release inspectors each matched all
+5,993 texture headers again. This confirms the header comparison against the
+hashed manifest input and does not verify visual output.
+
+```sh
+python3 tools/research/verify_texture_inspector.py build/debug/dragonrider_inspect research/installed/us research/exports/selector-0040-samples/us.json
+python3 tools/research/verify_texture_inspector.py build/release/dragonrider_inspect research/installed/us research/exports/selector-0040-samples/us.json
+```

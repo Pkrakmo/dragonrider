@@ -13,28 +13,24 @@ import struct
 
 
 def inspect(path, root):
-    size = path.stat().st_size
-    digest = hashlib.sha256()
     with path.open('rb') as stream:
-        head = stream.read(12)
-        if len(head) != 12 or head[:4] != b'SRSC':
+        header = stream.read(12)
+        if len(header) < 12 or header[:4] != b'SRSC':
             return None
-        version, table, count = struct.unpack_from('<HIH', head, 4)
-        end = table + count * 14
-        if version != 0x100 or not count or table < 12 or end > size:
-            return {'path': path.relative_to(root).as_posix(), 'status': 'skipped_invalid_header'}
-        stream.seek(0)
-        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
-            digest.update(chunk)
-        stream.seek(table)
-        raw = stream.read(count * 14)
-        if len(raw) != count * 14:
-            raise OSError(f'file changed while reading: {path}')
+        data = header + stream.read()
+    size = len(data)
+    version, table, count = struct.unpack_from('<HIH', data, 4)
+    end = table + count * 14
+    if version != 0x100 or not count or table < 12 or end > size:
+        return {'path': path.relative_to(root).as_posix(), 'status': 'skipped_invalid_header'}
+    raw = data[table:end]
+    if len(raw) != count * 14:
+        raise OSError(f'truncated table: {path}')
     entries = list(struct.iter_unpack('<HIII', raw))
     ranges = [(entry[2], entry[2] + entry[3]) for entry in entries]
     pairs = list(zip(ranges, ranges[1:]))
     keys = [(entry[0], entry[1]) for entry in entries]
-    return {'path': path.relative_to(root).as_posix(), 'sha256': digest.hexdigest(),
+    return {'path': path.relative_to(root).as_posix(), 'sha256': hashlib.sha256(data).hexdigest(),
             'file_size': size, 'table_offset': table, 'count': count, 'status': 'examined',
             'ranges_within_payload': sum(12 <= a <= b <= table for a, b in ranges),
             'zero_lengths': sum(a == b for a, b in ranges),

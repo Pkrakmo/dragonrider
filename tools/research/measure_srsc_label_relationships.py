@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import struct
 
-from measure_srsc_lookup import read_records
+from measure_srsc_lookup import read_snapshot
 
 PAIRS = ((0x0102, 0x0101), (0x0200, 0x0201), (0x0302, 0x0301))
 
@@ -44,31 +44,27 @@ def measure(records, labels, source_kind, label_kind):
     return stats
 
 
-def payload_labels(path, records):
+def payload_labels(data, records):
     """Read bounded selected payloads; return normalized byte strings only in memory."""
     labels = {}
-    with path.open('rb') as stream:
-        header = stream.read(12)
-        _, table, count = struct.unpack_from('<HIH', header, 4)
-        stream.seek(table)
-        raw = stream.read(count * 14)
-        if len(raw) != count * 14 or count != len(records):
+    _, table, count = struct.unpack_from('<HIH', data, 4)
+    raw = data[table:table + count * 14]
+    if count != len(records):
+        raise ValueError('table changed during measurement')
+    for i, (kind, second, third, start, length) in enumerate(struct.iter_unpack('<HHHII', raw)):
+        if (kind, second, third) != records[i]:
             raise ValueError('table changed during measurement')
-        for i, (kind, second, third, start, length) in enumerate(struct.iter_unpack('<HHHII', raw)):
-            if (kind, second, third) != records[i]:
-                raise ValueError('table changed during measurement')
-            if kind not in {pair[1] for pair in PAIRS}:
-                continue
-            if start < 12 or length < 2 or length > 65537 or start + length > table:
-                raise ValueError('invalid bounded label payload')
-            stream.seek(start)
-            payload = stream.read(length)
-            if len(payload) != length or int.from_bytes(payload[:2], 'little') != length - 2:
-                raise ValueError('invalid label framing')
-            value = payload[2:]
-            if not value or any(not (32 <= b <= 126 or b == 0) for b in value) or 0 in value[:-1]:
-                raise ValueError('unexpected label bytes')
-            labels[i] = value[:-1] if value[-1] == 0 else value
+        if kind not in {pair[1] for pair in PAIRS}:
+            continue
+        if start < 12 or length < 2 or length > 65537 or start + length > table:
+            raise ValueError('invalid bounded label payload')
+        payload = data[start:start + length]
+        if len(payload) != length or int.from_bytes(payload[:2], 'little') != length - 2:
+            raise ValueError('invalid label framing')
+        value = payload[2:]
+        if not value or any(not (32 <= b <= 126 or b == 0) for b in value) or 0 in value[:-1]:
+            raise ValueError('unexpected label bytes')
+        labels[i] = value[:-1] if value[-1] == 0 else value
     return labels
 
 
@@ -86,8 +82,8 @@ def main():
         if entry['status'] != 'examined':
             raise ValueError('inventory contains unexamined files')
         try:
-            records = read_records(root, entry)
-            labels = payload_labels(root / entry['path'], records)
+            data, records = read_snapshot(root, entry)
+            labels = payload_labels(data, records)
         except ValueError:
             raise ValueError('invalid inventory entry or sample') from None
         for a, b in PAIRS:

@@ -22,6 +22,11 @@ five bytes after it. The helper reads its flag byte from its fifth stack
 argument (`[ebp+0x18]`); on these call sequences that is the first shown push
 for the helper.
 
+The same full disassembly contains no direct relative unconditional `JMP` to
+the helper. The hash-pinned verifier now asserts both the 23-call address set
+and the absence of such direct jumps. This does not inspect computed targets,
+indirect or virtual calls, or nonstandard tail transfers.
+
 | Direct call | Inspected window | Flag provenance in the window |
 | --- | --- | --- |
 | `0x00403623` | `0x004035c3–0x00403628` | literal `4` |
@@ -58,11 +63,12 @@ requires further bounded caller tracing; `0x0044cb63` was resolved in the
 
 ## Limits and unknowns
 
-The direct-call list omits indirect, virtual, tail-jump, data-driven, or
-unrecovered calls. It does not establish that any listed path executes, that
-the remaining dynamic flag takes a particular value, what the flags mean, or
-what effect the discriminator has on gameplay or rendering. In particular,
-the result does not make literal `4` or `5` a format invariant.
+The direct-call list and direct-JMP check omit indirect, virtual,
+computed-tail-transfer, data-driven, or unrecovered calls. They do not establish
+that any listed path executes, that the remaining dynamic flag takes a
+particular value, what the flags mean, or what effect the discriminator has
+on gameplay or rendering. In particular, the result does not make literal `4`
+or `5` a format invariant.
 
 ## Reproduction
 
@@ -80,9 +86,10 @@ address plus five as the `objdump` window bounds. Record only the call address,
 window and argument provenance; do not publish the private executable or bulk
 disassembly.
 
-The committed bounded verifier checks the executable's pinned SHA-256 and the
-23 direct relative call addresses before this report's per-window provenance
-classification is reused:
+The committed bounded verifier checks the executable's pinned SHA-256, the 23
+direct relative call addresses, and the absence of direct unconditional
+jumps to the helper before this report's per-window provenance classification
+is reused:
 
 ```sh
 python3 tools/research/verify_level_query_callers.py research/binaries/us/Drakan.exe
@@ -90,4 +97,4 @@ python3 -m unittest discover -s tools/research -p 'test_verify_level_query_calle
 ```
 
 It deliberately does not classify stack arguments or make any inference about
-the absent indirect-call population.
+indirect, virtual, computed tail-jump, or otherwise unrecovered callers.

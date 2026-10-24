@@ -9,41 +9,40 @@ import struct
 
 
 def inspect(path, root):
-    size = path.stat().st_size
+    return inspect_with_snapshot(path, root)[0]
+
+
+def inspect_with_snapshot(path, root):
+    """Return metadata and the exact bytes used to hash and parse the file."""
     with path.open('rb') as stream:
         header = stream.read(12)
-        if len(header) != 12 or header[:4] != b'SRSC':
-            return None
-        version, table, count = struct.unpack_from('<HIH', header, 4)
-        if version != 0x100 or not count or table < 12 or table + count * 14 > size:
-            return {'path': path.relative_to(root).as_posix(), 'status': 'skipped_header'}
-        stream.seek(table)
-        entries = stream.read(count * 14)
-        if len(entries) != count * 14:
-            raise OSError(f'truncated table: {path}')
-        measured = []
-        invalid = 0
-        for index, (tag, key, start, length) in enumerate(struct.iter_unpack('<HIII', entries)):
-            if tag != 0x40:
-                continue
-            if start < 12 or length < 16 or start + length > table:
-                invalid += 1
-                continue
-            stream.seek(start)
-            prefix = stream.read(16)
-            if len(prefix) != 16:
-                raise OSError(f'truncated prefix: {path}')
-            a, b, c, d = struct.unpack('<IIII', prefix)
-            measured.append({'index': index, 'key': key, 'start': start, 'length': length,
-                             'a': a, 'b': b, 'c': c, 'd': d})
-        if not measured and not invalid:
-            return None
-        stream.seek(0)
-        digest = hashlib.sha256()
-        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
-            digest.update(chunk)
+        if len(header) < 12 or header[:4] != b'SRSC':
+            return None, None
+        data = header + stream.read()
+    size = len(data)
+    version, table, count = struct.unpack_from('<HIH', data, 4)
+    if version != 0x100 or not count or table < 12 or table + count * 14 > size:
+        return {'path': path.relative_to(root).as_posix(), 'status': 'skipped_header'}, data
+    entries = data[table:table + count * 14]
+    measured = []
+    invalid = 0
+    for index, (tag, key, start, length) in enumerate(struct.iter_unpack('<HIII', entries)):
+        if tag != 0x40:
+            continue
+        if start < 12 or length < 16 or start + length > table:
+            invalid += 1
+            continue
+        prefix = data[start:start + 16]
+        if len(prefix) != 16:
+            raise OSError(f'truncated prefix: {path}')
+        a, b, c, d = struct.unpack('<IIII', prefix)
+        measured.append({'index': index, 'key': key, 'start': start, 'length': length,
+                         'a': a, 'b': b, 'c': c, 'd': d})
+    if not measured and not invalid:
+        return None, data
     return {'path': path.relative_to(root).as_posix(), 'status': 'examined',
-            'sha256': digest.hexdigest(), 'invalid_ranges': invalid, 'records': measured}
+            'sha256': hashlib.sha256(data).hexdigest(), 'invalid_ranges': invalid,
+            'records': measured}, data
 
 
 def power_of_two(value):

@@ -7,10 +7,12 @@ import json
 from pathlib import Path
 import struct
 import subprocess
+import tempfile
 import zlib
 
 from measure_level_blocks import measure
 from measure_level_source_ids import records
+from measure_level_0001 import safe_inventory_path
 
 
 def expected(entry, prefix, index, cell, mode):
@@ -48,31 +50,35 @@ def main():
         parser.error('inventory contains no level candidates')
     totals = Counter()
     failures = []
-    for item in files:
-        try:
-            path = args.root / item['path']
-            data = path.read_bytes()
-            if hashlib.sha256(data).hexdigest() != item['sha256']:
-                raise ValueError('inventory hash mismatch')
-            record, payload = records(data)[(1, 0, 0)]
-            selected = {}
-            def add(entry, prefix, index, cell):
-                totals[f'flags_{cell[0] & 3}'] += 1
-                selected.setdefault(cell[0] & 3, (entry, prefix, index, cell))
-            summary = measure(payload, on_cell_detail=add)
-            totals['cells'] += summary[10]
-            if args.inspector:
-                for entry, prefix, index, cell in selected.values():
-                    row, column = divmod(index, prefix[1])
-                    for mode in ('normal', 'mode1'):
-                        result = subprocess.run([str(args.inspector), '--level-cell', str(record), str(entry),
-                                                 str(column), str(row), mode, str(path)], capture_output=True, text=True)
-                        if result.returncode or result.stdout != expected(entry, prefix, index, cell, mode):
-                            raise ValueError('inspector cell mismatch: ' + result.stderr.strip())
-                        totals['comparisons'] += 1
-            totals['files'] += 1
-        except (OSError, ValueError, KeyError, struct.error, zlib.error) as error:
-            failures.append(f"{item['path']}: {error}")
+    root = args.root.resolve(strict=True)
+    with tempfile.TemporaryDirectory(prefix='dragonrider-level-cells-') as directory:
+        snapshot = Path(directory) / 'verified-level.lvl'
+        for item in files:
+            try:
+                path = safe_inventory_path(root, item['path'])
+                data = path.read_bytes()
+                if len(data) != item['size'] or hashlib.sha256(data).hexdigest() != item['sha256']:
+                    raise ValueError('inventory size or hash mismatch')
+                record, payload = records(data)[(1, 0, 0)]
+                selected = {}
+                def add(entry, prefix, index, cell):
+                    totals[f'flags_{cell[0] & 3}'] += 1
+                    selected.setdefault(cell[0] & 3, (entry, prefix, index, cell))
+                summary = measure(payload, on_cell_detail=add)
+                totals['cells'] += summary[10]
+                if args.inspector and selected:
+                    snapshot.write_bytes(data)
+                    for entry, prefix, index, cell in selected.values():
+                        row, column = divmod(index, prefix[1])
+                        for mode in ('normal', 'mode1'):
+                            result = subprocess.run([str(args.inspector), '--level-cell', str(record), str(entry),
+                                                     str(column), str(row), mode, str(snapshot)], capture_output=True, text=True)
+                            if result.returncode or result.stdout != expected(entry, prefix, index, cell, mode):
+                                raise ValueError('inspector cell mismatch: ' + result.stderr.strip())
+                            totals['comparisons'] += 1
+                totals['files'] += 1
+            except (OSError, ValueError, KeyError, struct.error, zlib.error) as error:
+                failures.append(f"{item['path']}: {error}")
     print(f'Levels: {totals["files"]}/{len(files)}; cells={totals["cells"]}; '
           f'flags bits 1:0 counts={[totals[f"flags_{i}"] for i in range(4)]}; '
           f'inspector comparisons={totals["comparisons"]}')

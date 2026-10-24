@@ -46,33 +46,30 @@ def _safe_inventory_path(root, value):
 
 
 def read_records(root, entry):
-    """Return bounded table triples after verifying the whole private file."""
+    """Return bounded table triples from one size/hash-verified file snapshot."""
     if not isinstance(entry, dict) or entry.get("status") != "examined":
         raise ValueError("inventory contains unexamined files")
+    expected_size = entry.get("file_size")
     expected_hash = entry.get("sha256")
+    if type(expected_size) is not int or expected_size < 0:
+        raise ValueError("invalid inventory file size")
     if not isinstance(expected_hash, str) or not _SHA256.fullmatch(expected_hash):
         raise ValueError("invalid inventory hash")
     path = _safe_inventory_path(root, entry.get("path"))
-    size = path.stat().st_size
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        header = stream.read(12)
-        if len(header) != 12 or header[:4] != b"SRSC":
-            raise ValueError("not an SRSC header")
-        version, table_offset, count = struct.unpack_from("<HIH", header, 4)
-        if version != 0x0100 or not count or table_offset < 12:
-            raise ValueError("invalid SRSC header")
-        if table_offset > size or count > (size - table_offset) // 14:
-            raise ValueError("invalid bounded table")
-        stream.seek(0)
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-        if digest.hexdigest() != expected_hash:
-            raise ValueError("inventory hash mismatch")
-        stream.seek(table_offset)
-        raw = stream.read(count * 14)
-        if len(raw) != count * 14:
-            raise ValueError("short table read")
+    data = path.read_bytes()
+    if len(data) != expected_size or hashlib.sha256(data).hexdigest() != expected_hash:
+        raise ValueError("inventory size or hash mismatch")
+    if len(data) < 12 or data[:4] != b"SRSC":
+        raise ValueError("not an SRSC header")
+    version, table_offset, count = struct.unpack_from("<HIH", data, 4)
+    if version != 0x0100 or not count or table_offset < 12:
+        raise ValueError("invalid SRSC header")
+    if table_offset > len(data) or count > (len(data) - table_offset) // 14:
+        raise ValueError("invalid bounded table")
+    table_end = table_offset + count * 14
+    raw = data[table_offset:table_end]
+    if len(raw) != count * 14:
+        raise ValueError("short table read")
     records = list(struct.iter_unpack("<HHHII", raw))
     for _, _, _, payload_offset, payload_length in records:
         if (payload_offset < 12 or payload_offset > table_offset or

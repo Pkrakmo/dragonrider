@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Compare separate-file CUE AUDIO tracks as signed 16-bit stereo PCM.
+"""Compare separate-file CUE AUDIO tracks; interpret sample values as PCM.
 
-Requires numpy. Inputs are never modified. Output contains no sample bytes.
+Numeric samples assume signed 16-bit little-endian stereo; raw BIN byte order is
+not established by CUE metadata. Requires numpy. Inputs are read only; output
+contains no sample bytes.
 Exact-anchor search detects a constant frame offset only where raw audio matches.
 """
 import argparse
@@ -22,15 +24,14 @@ def sha256(data):
 
 def file_sha256(path):
     digest = hashlib.sha256()
-    with path.open('rb') as stream:
+    with Path(path).open('rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(block)
     return digest.hexdigest()
 
 
-def parse_cue(path):
-    path = Path(path)
-    text = path.read_text(encoding='utf-8-sig')
+def parse_cue_bytes(data):
+    text = data.decode('utf-8-sig')
     files, current, track = [], None, None
     for line in text.splitlines():
         line = line.strip()
@@ -66,6 +67,30 @@ def parse_cue(path):
         if 0 in t['indexes'] and t['indexes'][0] > t['indexes'][1]:
             raise ValueError('INDEX 00 follows INDEX 01')
     return files
+
+
+def parse_cue(path):
+    return parse_cue_bytes(Path(path).read_bytes())
+
+
+def resolve_cue_file(cue_path, name):
+    """Resolve a CUE member without following links outside its directory."""
+    cue_path = Path(cue_path)
+    parent = cue_path.parent.resolve(strict=True)
+    candidate = parent / name
+    current = parent
+    for part in Path(name).parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError(f'CUE member must not contain symlinks: {name}')
+    resolved = candidate.resolve(strict=True)
+    try:
+        resolved.relative_to(parent)
+    except ValueError as exc:
+        raise ValueError(f'CUE member escapes its directory: {name}') from exc
+    if not resolved.is_file():
+        raise ValueError(f'CUE member must be a regular file: {name}')
+    return resolved
 
 
 def anchors(a, b):
@@ -127,25 +152,32 @@ def metrics(a, b, offset):
             'first_difference_overlap_frame': first_difference, 'last_difference_overlap_frame': last_difference}
 
 
-def compare(cue_a, cue_b):
+def compare(cue_a, cue_b, cue_bytes=None):
     cues = [Path(cue_a), Path(cue_b)]
-    tracks = [parse_cue(c) for c in cues]
+    if cue_bytes is None:
+        cue_bytes = [c.read_bytes() for c in cues]
+    elif len(cue_bytes) != len(cues):
+        raise ValueError('Provide exactly two CUE byte snapshots')
+    tracks = [parse_cue_bytes(data) for data in cue_bytes]
     if [(t['number'], t['mode']) for t in tracks[0]] != [(t['number'], t['mode']) for t in tracks[1]]:
         raise ValueError('Track numbers or modes differ')
     result = {'format': 'CD-DA 44100 Hz signed 16-bit little-endian interleaved stereo',
-              'numpy_version': np.__version__, 'cues': [{'path': str(c), 'sha256': sha256(c.read_bytes())} for c in cues], 'tracks': []}
+              'sample_interpretation': 'little-endian assumption; source BIN byte order unverified',
+              'numpy_version': np.__version__,
+              'cues': [{'path': str(c), 'sha256': sha256(data)}
+                       for c, data in zip(cues, cue_bytes)], 'tracks': []}
     for ta, tb in zip(*tracks):
-        paths = [c.parent / t['file'] for c, t in zip(cues, (ta, tb))]
-        sizes = [p.stat().st_size for p in paths]
+        paths = [resolve_cue_file(c, t['file']) for c, t in zip(cues, (ta, tb))]
+        raw = [p.read_bytes() for p in paths]
+        sizes = [len(data) for data in raw]
         for t, size in zip((ta, tb), sizes):
             if size % SECTOR or any(v > size for v in t['indexes'].values()):
                 raise ValueError(f"Invalid length or out-of-bounds index: {t['file']}")
         entry = {'number': ta['number'], 'mode': ta['mode'],
-                 'inputs': [{'file': t['file'], 'size': size, 'sha256': file_sha256(path),
+                 'inputs': [{'file': t['file'], 'size': size, 'sha256': sha256(data),
                              'index_00_bytes': t['indexes'].get(0), 'index_01_bytes': t['indexes'][1]}
-                            for t, path, size in zip((ta, tb), paths, sizes)]}
+                            for t, data, size in zip((ta, tb), raw, sizes)]}
         if ta['mode'] == 'AUDIO':
-            raw = [p.read_bytes() for p in paths]
             a, b = (data[t['indexes'][1]:] for data, t in zip(raw, (ta, tb)))
             entry['program_sha256'] = [sha256(a), sha256(b)]
             entry['index_01_comparison'] = metrics(a, b, 0)
@@ -164,12 +196,14 @@ def main():
     p.add_argument('output', type=Path, help='private JSON output (must not be an input)')
     args = p.parse_args()
     # Never overwrite CUE/BIN inputs, including via symlinks.
+    cue_bytes = [cue.read_bytes() for cue in (args.cue_a, args.cue_b)]
+    tracks = [parse_cue_bytes(data) for data in cue_bytes]
     inputs = [args.cue_a, args.cue_b]
-    for cue in (args.cue_a, args.cue_b):
-        inputs.extend(cue.parent / t['file'] for t in parse_cue(cue))
+    for cue, cue_tracks in zip((args.cue_a, args.cue_b), tracks):
+        inputs.extend(resolve_cue_file(cue, t['file']) for t in cue_tracks)
     if args.output.resolve() in {p.resolve() for p in inputs} or (args.output.exists() and any(args.output.samefile(p) for p in inputs)):
         raise ValueError('Output must not overwrite an input')
-    result = compare(args.cue_a, args.cue_b)
+    result = compare(args.cue_a, args.cue_b, cue_bytes)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
 

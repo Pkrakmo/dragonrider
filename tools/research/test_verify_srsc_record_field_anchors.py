@@ -3,7 +3,8 @@
 
 import unittest
 
-from verify_srsc_record_field_anchors import instructions
+from verify_srsc_record_field_anchors import (direct_references, instructions,
+                                               literal_address_offsets)
 
 
 class InstructionTests(unittest.TestCase):
@@ -28,6 +29,27 @@ Disassembly of section .text:
         self.assertEqual(instructions(text), {
             0x45F1D5: "mov ecx,DWORD PTR [esi+0x6]",
         })
+
+    def test_separates_direct_accessor_calls_from_jumps(self):
+        text = """
+  42b0d9:\te8 f2 49 03 00       \tcall   0x45fad0
+  435601:\te8 ca a4 02 00       \tcall   0x45fad0
+  435606:\t85 c0                \ttest   eax,eax
+  435607:\te9 00 00 00 00       \tjmp    0x45fad0
+  435608:\tff d0                \tcall   eax
+"""
+        self.assertEqual(direct_references(text, "call"), {0x42B0D9, 0x435601})
+        self.assertEqual(direct_references(text, "jmp"), {0x435607})
+        self.assertEqual(direct_references(text, "call", 0x45F5D0), set())
+        with self.assertRaisesRegex(ValueError, "mnemonic"):
+            direct_references(text, "ret")
+
+    def test_finds_only_raw_absolute_address_literals(self):
+        address = 0x0045FAD0
+        data = b"prefix" + address.to_bytes(4, "little") + b"middle" + \
+            address.to_bytes(4, "little")
+        self.assertEqual(literal_address_offsets(data, address), [6, 16])
+        self.assertEqual(literal_address_offsets(b"no pointer", address), [])
 
 
 if __name__ == "__main__":

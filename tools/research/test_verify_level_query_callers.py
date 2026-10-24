@@ -3,7 +3,7 @@
 
 import unittest
 
-from verify_level_query_callers import direct_callers
+from verify_level_query_callers import direct_callers, direct_jumps
 
 
 class DirectCallerTests(unittest.TestCase):
@@ -24,6 +24,14 @@ Disassembly of section .text:
 """
         self.assertEqual(direct_callers(disassembly, 0x402000), {0x401000})
         self.assertEqual(direct_callers(disassembly, 0x420e10), set())
+
+    def test_identifies_direct_unconditional_jumps_separately(self):
+        disassembly = """
+  403623:\te9 e8 d7 01 00       \tjmp   0x420e10
+  403624:\tff e0                \tjmp   eax
+  403625:\te8 e8 d7 01 00       \tcall  0x420e10
+"""
+        self.assertEqual(direct_jumps(disassembly), {0x403623})
 
 
 if __name__ == "__main__":

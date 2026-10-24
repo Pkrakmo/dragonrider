@@ -17,8 +17,15 @@ bytes). Comparing the program region therefore starts after the first two
 seconds in **each** BIN, rather than assuming the whole BIN is program audio.
 Each CD sector is 2,352 bytes, or 588 four-byte interleaved stereo frames.
 The numerical sample calculations interpret each frame as two signed 16-bit
-little-endian samples at 44,100 frames per second. Byte equality and discovered
-frame offsets do not depend on sample endianness. No resampling, gain matching,
+little-endian samples at 44,100 frames per second. This byte order is an
+analysis assumption: the CUE files do not identify how the BIN data was
+extracted. Raw-audio tools differ by output path: cdrdao documents raw output
+as big-endian, while bchunk exposes an optional byte-swap operation. These
+documents do not establish the byte order of these particular BINs. Byte
+equality and discovered frame offsets do not depend on sample endianness;
+signed amplitude, RMS, and sample-step figures do. Until source-rip provenance
+or an independent decode confirms byte order, those numeric observations are
+conditional on the little-endian interpretation. No resampling, gain matching,
 lossy encoding, channel swapping, or audio fingerprinting was applied.
 
 The script searches 64-byte exact anchors at three widely separated positions
@@ -99,7 +106,7 @@ The synthetic tests cover positive and negative frame shifts, a changed frame,
 silent and nonmatching anchors, different INDEX 01 positions, out-of-range
 indexes, path traversal, unsupported CUE directives, and output aliases of
 inputs. They passed 4/4 on
-2026-10-17. The script records the NumPy version in its private report. It is a
+2026-10-17. The script records the NumPy version and the assumed, unverified raw sample byte order in its private report. It is a
 research tool, not an engine or build dependency.
 
 The original two CUEs, sixteen BINs and separate patch ZIP also have a private
@@ -112,3 +119,82 @@ sha256sum -c research/exports/audio-comparison/archival.sha256
 
 This identifies the supplied patch archive; it does not establish the version
 of any extracted or installed patch executable.
+
+## Single-snapshot recheck, 2026-10-23
+
+`compare_audio.py` now reads each CUE and track BIN once per comparison and
+uses those in-memory byte snapshots for parsing, sizes, SHA-256 values, anchor
+search, and PCM comparisons. The CLI also uses the same CUE snapshots for its
+output/input collision check and the comparison, so both steps resolve the same
+BIN paths. This ensures the reported digests identify the bytes actually
+measured. Six synthetic tests passed, including read-count checks for both the
+comparison API and CLI. A fresh Python 3.14.7/NumPy CLI run on the
+same US and Europe CUE/BIN inputs produced measurements identical to the prior
+private JSON after removing input path fields and the new byte-order-assumption
+metadata field: each of tracks 2–8 retained
+the +673-frame offset; tracks 2–7 had zero differing aligned frames, while
+track 8 retained 87,527 differing frames in 9,477,887 aligned frames. The
+19-entry private archival SHA-256 manifest also passed. This recheck confirms
+the same measured content and improves byte-to-digest provenance; it does not
+identify why track 8 differs or establish audibility or musical significance.
+
+An input-boundary review on 2026-10-23 found that the comparator rejected
+absolute and parent-traversal names but would follow a symlinked BIN member.
+The resolver now rejects symlink components and requires the resolved regular
+file to remain within the resolved CUE directory. Temporary tests reproduce
+both a symlinked file and a symlinked directory escape. The byte-order
+measurement API also now requires exactly two CUE paths; previously one path
+raised `IndexError` and extra paths were silently ignored by `zip`. The focused
+disc-tool suite passes 13/13 tests after these changes.
+
+## PCM byte-order limitation
+
+The sample-domain metrics above currently interpret each pair of bytes as a
+little-endian signed 16-bit value. The exact frame-match counts, alignment, and
+zero-byte spans are unchanged if the interpretation is big-endian, but numeric
+sample amplitudes, RMS envelopes, and step sizes would change. The original
+CUEs do not record which extraction tool or byte-swap setting produced their
+BIN files. For example, [cdrdao documents its raw audio output as big-endian](https://github.com/cdrdao/cdrdao),
+while [bchunk exposes an explicit optional audio-byte swap](https://github.com/hessu/bchunk/blob/master/bchunk.c).
+Neither source identifies the provenance of the files examined here. Treat the
+sample-domain numeric conclusions as conditional until rip provenance or an
+independent decode resolves this.
+
+A bounded signal-shape cross-check favors the current little-endian
+interpretation. `tools/disc/measure_cdda_byte_order.py` verifies the CUE and
+AUDIO BIN snapshots against the private archival SHA-256 manifest, then measures
+a centered 44,100-frame window after INDEX 01 in each track 2–8 BIN. For each
+candidate byte order, it removes the channel mean, applies a Hann window, and
+compares summed two-channel FFT power above 20 kHz with power from 20 Hz through
+20 kHz. The median ratio was `3.94e-9` (US) and `3.91e-9` (Europe) for the
+little-endian interpretation, versus `0.0977` for both editions interpreted
+big-endian. The output contains only aggregate ratios; it emits no paths, hashes
+or audio bytes. This signal-shape result supports, but does not prove, the
+little-endian interpretation: it is not an independent decode, extraction
+provenance, or confirmation from the retail disc. The amplitude and RMS
+conclusions therefore remain conditional.
+
+A five-position robustness check samples one-second windows at 0%, 25%, 50%,
+75%, and 100% of each track's legal program-region start range. Across 34 usable
+US windows (one was unusable for lacking finite audible-band power) and 35 Europe
+windows, the median high/audible ratio was `5.81e-9` and `6.22e-9` for
+little-endian, compared with `0.0986` and `0.0980` for big-endian. The
+little-endian ratio was lower than the big-endian ratio in 30/34 US and 30/35
+Europe windows; maxima near `0.11` show that this is not true of every window.
+This distributed check makes a single centered sample less likely to explain
+the aggregate preference, while preserving the same caveat about source byte
+order.
+
+Reproduce the bounded check with:
+
+```sh
+python3 -m unittest discover -s tools/disc -p 'test_measure_cdda_byte_order.py' -v
+python3 tools/disc/measure_cdda_byte_order.py \
+  'Drakan - Order of the Flame (USA)/Drakan - Order of the Flame (USA).cue' \
+  'Drakan - Order of the Flame (Europe)/Drakan - Order of the Flame (Europe).cue' \
+  research/exports/audio-comparison/archival.sha256
+python3 tools/disc/measure_cdda_byte_order.py \
+  'Drakan - Order of the Flame (USA)/Drakan - Order of the Flame (USA).cue' \
+  'Drakan - Order of the Flame (Europe)/Drakan - Order of the Flame (Europe).cue' \
+  research/exports/audio-comparison/archival.sha256 --windows-per-track 5
+```

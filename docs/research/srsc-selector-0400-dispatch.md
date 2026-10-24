@@ -66,8 +66,10 @@ payload length and the receiver dispatches through the traced methods. Runtime
 file association and invocation remain unknown. The sample is not evidence
 that all `0x0400` records have zero third words or require printable output;
 the high-byte exception is retained. Payload reads are capped at 65,536 bytes
-and checked against the pre-table range; the table is reread after hashing,
-so concurrent modification cannot be ruled out. No payload contents are output.
+and checked against the pre-table range. The 2026-10-23
+[single-snapshot recheck](srsc-lookup-order.md#selected-payload-diagnostics-snapshot-recheck-2026-10-23)
+parses the payload and table from the same verified bytes. No payload contents
+are output.
 
 ## Reproduction
 

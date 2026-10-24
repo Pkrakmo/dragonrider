@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -5,6 +6,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+from analyze_srsc_payloads import inspect_with_snapshot
 
 
 class PayloadMeasurementsTest(unittest.TestCase):
@@ -18,7 +21,16 @@ class PayloadMeasurementsTest(unittest.TestCase):
                        + struct.pack('<HIII', 0x40, 2, 12, 15)
                        + struct.pack('<HIII', 0x40, 3, 27, 16)
                        + struct.pack('<HIII', 0x41, 4, 12, 16))
-            (root / 'sample.txd').write_bytes(b'SRSC' + struct.pack('<HIH', 0x100, 28, 4) + payload + entries)
+            contents = b'SRSC' + struct.pack('<HIH', 0x100, 28, 4) + payload + entries
+            sample = root / 'sample.txd'
+            sample.write_bytes(contents)
+            inspected, snapshot = inspect_with_snapshot(sample, root)
+            self.assertEqual(snapshot, contents)
+            self.assertEqual(inspected['sha256'], hashlib.sha256(snapshot).hexdigest())
+            self.assertEqual(inspected['records'][0]['a'], 32)
+            sample.write_bytes(b'changed')
+            self.assertEqual(snapshot[12:28], payload)
+            sample.write_bytes(contents)
             script = Path(__file__).with_name('analyze_srsc_payloads.py')
             subprocess.run([sys.executable, str(script), str(root), str(output)],
                            check=True, capture_output=True, text=True)
