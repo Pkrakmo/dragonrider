@@ -1,48 +1,95 @@
-# Windows REA research handoff
+# Retail executable REA research handoff
 
-This directory is owned by the Windows research contributor on
-`research/rea-windows`. It holds concise, evidence-backed findings and the
-backlog for Windows-only analysis. It must never contain original media,
-executables, patches, Ghidra databases, exported disassembly, bulk decompiler
-output, credentials, or local machine paths.
+This branch and directory name are historical. The analysis target is the
+original Windows PE executable, but the contributor's research environment is
+Ubuntu/Linux. No Windows host, Windows runtime, Windows engine port, or Windows
+CI is required. Findings inform DragonRider's portable C++20 implementation;
+they do not claim original-source recovery.
 
-Start with [the Windows mission](../../agents/windows-reverse-engineering-mission.md)
-and [contributor workflow](../../CONTRIBUTING.md). The Fedora maintainer owns
-shared `TODO.md`, architecture documents, engine implementation, Linux CI, and
-integration into `main`.
+The local branch `research/rea-windows` now includes the current `main` via a
+non-destructive merge. Keep original game files, Ghidra databases, exports,
+logs, and bulk decompilation outside Git. Never modify shared `TODO.md`, engine
+code, CI, or architecture documents from this research branch without the
+maintainer's assignment.
 
-## First milestone
+Start with [the current autonomous research prompt](../../agents/ubuntu-retail-binary-research-prompt.md),
+[contributor workflow](../../CONTRIBUTING.md), and the root
+[AGENTS.md](../../../AGENTS.md). The older
+[Windows mission](../../agents/windows-reverse-engineering-mission.md) is
+superseded.
 
-Independently test the following retail-binary expectations after validating
-the input hash:
+## Completed baseline
 
-- loader function `0x0045EDC0`;
-- data address `0x0047D900`;
-- bytes expected to be ASCII `SRSC`;
-- a resource-file open, 12-byte header read, `0x0100` version check, and a
-  14-byte-entry table read.
+| Status | Task | Evidence |
+| --- | --- | --- |
+| Done | Validate Ubuntu REA/Ghidra toolchain on a synthetic input | [Toolchain report](ubuntu-toolchain-validation.md) |
+| Done | Independently benchmark the retail SRSC loader | [Loader benchmark](retail-loader-benchmark.md) |
+| Done | Map executable entry, startup, message loop, termination, and imports | [Startup map](startup-map.md) |
 
-They are benchmark hypotheses, not established results for the Windows
-contributor to repeat. Record supporting or contradictory observations with
-[the evidence template](evidence-template.md). The canonical US retail
-reference hash is
-`23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`.
-If the analyzed executable differs, report its actual hash and do not reuse
-these addresses as equivalent.
+The toolchain report records the earlier session when no retail executable was
+available. The later loader report documents obtaining and hash-verifying the
+retail input, so the earlier blocker is historical and closed for the current
+baseline.
 
-Do not use OpenDrakan format research or community-patch reverse engineering
-until this independent baseline is complete and the Fedora maintainer agrees
-to explicitly labeled cross-validation.
+## Audit against project notes, 2026-10-22
 
-## Scoped backlog
+On 2026-10-22, the available US retail executable hashed to
+`23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`, matching
+the project baseline. Local `sha256sum` and `objdump` checks independently
+confirmed the `SRSC` bytes at `0x0047D900`, the loader's 12-byte read,
+`0x0100` comparison, and `count * 14` table-read arithmetic. These findings
+agree with [the established loader note](../riot-file-loading.md); the report
+does not claim new format semantics. Bounded disassembly also supports the
+startup entry, window setup, and message-loop calls in the new map. Subsystem
+labels and indirect call targets remain interpretations, as the report says.
 
-| Status | Task | Scope | Dependency / next action | Owner |
-| --- | --- | --- | --- | --- |
-| Ready | Evaluate REA with a disposable local project and actual agent-initiated MCP call | Toolchain | Record versions, configuration review, limits, and blocker if any | Windows contributor |
-| Ready | Independently benchmark the SRSC loader | `0x0045EDC0`, `0x0047D900` | Validate executable hash; write one evidence report | Windows contributor |
-| Blocked by milestone 1 | Map executable startup and imports | Entry point and initialization | Begin only after the benchmark report exists | Windows contributor |
-| Blocked by startup map | Map platform subsystems | Win32, DirectDraw/Direct3D, DirectInput, DirectSound | Use bounded questions and evidence reports | Windows contributor |
+The independent check used GNU `objdump` 2.45.1-5.fc43:
 
-Update this single table rather than creating competing trackers. Use `Ready`,
-`In progress`, `Blocked`, or `Done`; a `Done` row must link to an evidence
-report and its reproducible verification.
+```sh
+sha256sum research/binaries/us/Drakan.exe
+objdump -s --start-address=0x47d900 --stop-address=0x47d904 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x45edc0 --stop-address=0x45ef62 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x468e20 --stop-address=0x468f20 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x412010 --stop-address=0x4122c0 research/binaries/us/Drakan.exe
+```
+
+The contributor's 2026-10-23 [reproduction audit](reproduction-audit-2026-10-23.md)
+records Ubuntu objdump 2.42, Python 3.12.3, the original inline-parser method,
+and a versioned hash-gated metadata probe. A fresh metadata check agrees with
+13 import descriptors and 207 entries. Historical and repeated checks are
+explicitly separated; raw outputs remain private.
+
+## Next bounded work
+
+| Status | Task | Evidence / next action |
+| --- | --- | --- |
+| Done | Close baseline reproduction gaps | [Audit and commands](reproduction-audit-2026-10-23.md) |
+| Done | Map bounded window lifetime at 0x412350 | [Report](window-lifetime-2026-10-23.md); explicit callback recovery and raw cross-check |
+| Done | Map input setup at 0x4058d0 and selected ownership paths | [Report](input-initialization-2026-10-23.md); full runtime recovery remains unknown |
+| Done | Connect activation field and selected input vtable slots | [Bounded follow-up](input-activation-poll-boundary-2026-10-23.md); conditional static dispatch |
+| Done | Resolve normal-return destructor registration/invocation | [Registration and exit walk](input-exit-registration-2026-10-23.md); failure and exceptional exits remain conditional |
+| Done | Map input event-consumer contracts | [Three consumer boundaries](input-event-consumers-2026-10-23.md); raw event uncertainty preserved |
+| Done | Resolve input callback ownership across EXE/RFL | [Conditional module bridge and temporary capture](input-callback-binding-2026-10-23.md); selected runtime module unobserved |
+| Done | Map small RFL pointer callback | [Kinds, masks and downstream boundary](input-pointer-callback-2026-10-23.md); jump table independently checked |
+| Done | Map downstream pointer-routing boundaries | [Hit tests, state and forwarding](pointer-routing-2026-10-23.md); pointee lifetime and concrete widget targets remain unknown |
+| Ready | Bound one action-code family in the large module callback | Select a narrow case in 0x1000c6c0; correlate its mapping producer before assigning gameplay labels |
+| Done | Establish normal-exit input/module release order | [Shutdown and handle boundary](module-shutdown-boundary-2026-10-23.md); release attempts ordered, unconditional callback clearing not proven |
+| Done | Recover explicit callback-clear dispatch | [Interface slot and payload-byte gates](input-clear-dispatch-2026-10-23.md); conditional local reachability, not shutdown linkage |
+| Done | Identify a 0x28 producer and local clear | [Selectors, payload and emission boundary](input-clear-producer-2026-10-23.md); transport and queue are covered in the later reports below |
+| Done | Trace module-init failure through callers | [The -6 fall-through and conditional shutdown](module-init-failure-2026-10-23.md); no runtime safety claim |
+| Done | Resolve sender construction and -2 fan-out | [Concrete target and return rule](input-sender-boundary-2026-10-23.md); last-result sign is not all-target delivery |
+| Done | Trace individual send to the external interface | [Payload mutation and interface creation](transport-interface-2026-10-23.md); actual delivery unobserved |
+| Done | Trace receive calls and queue insertion | [Ownership, locks, records and rollback](receive-queue-2026-10-23.md); same queue reaches the existing consumer |
+| Ready | Bound receive-worker wake and shutdown ownership | Trace event signaling and worker termination; current locks do not prove thread lifetime |
+
+All new investigation commands and tool limitations are in the
+[lifecycle reproduction procedure](lifecycle-reproduction-2026-10-23.md).
+The later RFL investigations extend that procedure with a separately imported,
+hash-pinned module project and [bounded script](support/InspectPinnedRetailFunctions.java).
+This is a completed static platform/input research package, not completion of
+the engine or proof of original runtime compatibility. No original code was run.
+
+Update this single backlog after each completed task. Use `Ready`, `In progress`,
+`Blocked`, or `Done`; a `Done` row must link to a report with reproducible
+verification. See the [evidence template](evidence-template.md). Never commit
+original media, executables, assets, private paths, databases, or raw exports.
