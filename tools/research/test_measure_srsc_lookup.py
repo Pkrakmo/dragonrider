@@ -3,7 +3,7 @@ import hashlib
 from pathlib import Path
 import struct
 import tempfile
-from measure_srsc_lookup import measure, read_records
+from measure_srsc_lookup import measure, read_records, read_snapshot
 
 
 class LookupMeasurements(unittest.TestCase):
@@ -31,12 +31,38 @@ class LookupMeasurements(unittest.TestCase):
             (root / 'sample').write_bytes(data)
             entry = {'path': 'sample', 'sha256': hashlib.sha256(data).hexdigest()}
             self.assertEqual(read_records(root, entry), [(1, 2, 3)])
+            self.assertEqual(read_snapshot(root, entry), (data, [(1, 2, 3)]))
             entry['sha256'] = '0' * 64
             with self.assertRaisesRegex(ValueError, 'hash mismatch'):
                 read_records(root, entry)
-            (root / 'sample').write_bytes(data[:-1])
+            truncated = data[:-1]
+            (root / 'sample').write_bytes(truncated)
+            bad_table = {
+                'path': 'sample', 'sha256': hashlib.sha256(truncated).hexdigest(),
+                'file_size': len(truncated),
+            }
             with self.assertRaisesRegex(ValueError, 'invalid bounded table'):
-                read_records(root, entry)
+                read_records(root, bad_table)
+
+    def test_verified_snapshot_rejects_bad_metadata_and_unsafe_paths(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
+            root = Path(directory)
+            data = b'SRSC' + struct.pack('<HIH', 0x100, 12, 1) + struct.pack('<HHHII', 1, 2, 3, 12, 0)
+            sample = root / 'sample'
+            sample.write_bytes(data)
+            entry = {'path': sample.name, 'sha256': hashlib.sha256(data).hexdigest(),
+                     'file_size': len(data)}
+            self.assertEqual(read_records(root, entry), [(1, 2, 3)])
+            with self.assertRaisesRegex(ValueError, 'size mismatch'):
+                read_records(root, dict(entry, file_size=len(data) + 1))
+            with self.assertRaisesRegex(ValueError, 'invalid inventory hash'):
+                read_records(root, dict(entry, sha256='bad'))
+            with self.assertRaisesRegex(ValueError, 'invalid inventory path'):
+                read_records(root, dict(entry, path='../sample'))
+            linked = root / 'linked'
+            linked.symlink_to(Path(outside) / 'outside')
+            with self.assertRaisesRegex(ValueError, 'symlink in inventory path'):
+                read_records(root, dict(entry, path=linked.name))
 
 
 if __name__ == '__main__':

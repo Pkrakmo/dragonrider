@@ -732,9 +732,16 @@ tag/body pair, and no trailing bytes follow the decoded frame sequences.
 
 This supports bounded framing and reuse measurements only. It neither proves
 that a tag names a body type nor connects a serialized frame to any writer,
-runtime consumer, or RFL descriptor. Five synthetic tests cover byte/length
-categories, duplicate accounting, nonpositive counts, every truncation of a
-synthetic frame, and stale-inventory rejection.
+runtime consumer, or RFL descriptor. Five original synthetic tests cover
+byte/length categories, duplicate accounting, nonpositive counts, every
+truncation of a synthetic frame, and stale-inventory rejection.
+
+On 2026-10-23 the inventory reader was hardened to verify each selected
+level's size and SHA-256 from one immutable snapshot, reject unsafe or
+symlinked paths and duplicate level paths, and pass only the verified bytes to
+the frame parser. The full 23-level scan reproduced the same counts. Seven
+focused tests now cover the measurement and these inventory rejection cases;
+they do not add format-level requirements.
 
 ```sh
 python3 tools/research/measure_level_frame_variants.py \

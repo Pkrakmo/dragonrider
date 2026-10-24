@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import struct
 import subprocess
+import tempfile
 
 from measure_0102_model_candidates import table
 from measure_srsc_prefix_selector import read_verified
@@ -74,19 +75,21 @@ def main():
     if not files:
         raise ValueError('no level files')
     totals = {}
-    for entry in files:
-        if entry['status'] != 'examined':
-            raise ValueError('inventory contains unexamined level')
-        data = read_verified(root, entry)
-        index, expected = selected(data)
-        # The inspector reopens the verified path; concurrent changes are not excluded.
-        result = subprocess.run([str(inspector), '--level-links', str(index), str(root / entry['path'])],
-                                capture_output=True, text=True, check=True)
-        parsed = dict(line.split(': ', 1) for line in result.stdout.splitlines() if ': ' in line)
-        if any(parsed.get(key) != str(value) for key, value in expected.items()):
-            raise ValueError('inspector does not match independent level-prefix decoding')
-        for key, value in expected.items():
-            totals[key] = totals.get(key, 0) + value
+    with tempfile.TemporaryDirectory(prefix='dragonrider-level-links-') as directory:
+        snapshot = Path(directory) / 'verified-level.lvl'
+        for entry in files:
+            if entry['status'] != 'examined':
+                raise ValueError('inventory contains unexamined level')
+            data = read_verified(root, entry)
+            index, expected = selected(data)
+            snapshot.write_bytes(data)
+            result = subprocess.run([str(inspector), '--level-links', str(index), str(snapshot)],
+                                    capture_output=True, text=True, check=True)
+            parsed = dict(line.split(': ', 1) for line in result.stdout.splitlines() if ': ' in line)
+            if any(parsed.get(key) != str(value) for key, value in expected.items()):
+                raise ValueError('inspector does not match independent level-prefix decoding')
+            for key, value in expected.items():
+                totals[key] = totals.get(key, 0) + value
     print(json.dumps({'files': len(files), 'totals': totals}, indent=2))
 
 

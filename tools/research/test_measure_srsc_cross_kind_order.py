@@ -69,6 +69,7 @@ class CrossKindOrderTests(unittest.TestCase):
             (root / "sample.srsc").write_bytes(data)
             entry = {
                 "path": "sample.srsc", "status": "examined",
+                "file_size": len(data),
                 "sha256": hashlib.sha256(data).hexdigest(),
             }
             self.assertEqual(read_records(root, entry), [(0x0101, 1, 0)])
@@ -80,6 +81,7 @@ class CrossKindOrderTests(unittest.TestCase):
             truncated = b"SRSC" + struct.pack("<HIH", 0x0100, 12, 1)
             (root / "truncated.srsc").write_bytes(truncated)
             bad_table = dict(entry, path="truncated.srsc",
+                             file_size=len(truncated),
                              sha256=hashlib.sha256(truncated).hexdigest())
             with self.assertRaisesRegex(ValueError, "table"):
                 read_records(root, bad_table)
@@ -87,9 +89,13 @@ class CrossKindOrderTests(unittest.TestCase):
             range_data = srsc([(0x0101, 1, 0)], payloads=[(12, 1)])
             (root / "range.srsc").write_bytes(range_data)
             bad_range = dict(entry, path="range.srsc",
+                             file_size=len(range_data),
                              sha256=hashlib.sha256(range_data).hexdigest())
             with self.assertRaisesRegex(ValueError, "pre-table"):
                 read_records(root, bad_range)
+            bad_size = dict(entry, file_size=len(data) + 1)
+            with self.assertRaisesRegex(ValueError, "size or hash"):
+                read_records(root, bad_size)
 
     def test_rejects_parent_path_and_malformed_inventory(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -98,6 +104,7 @@ class CrossKindOrderTests(unittest.TestCase):
             (root / "sample.srsc").write_bytes(data)
             entry = {
                 "path": "../sample.srsc", "status": "examined",
+                "file_size": len(data),
                 "sha256": hashlib.sha256(data).hexdigest(),
             }
             with self.assertRaisesRegex(ValueError, "path"):
@@ -120,6 +127,7 @@ class CrossKindOrderTests(unittest.TestCase):
             (root / "sample.srsc").write_bytes(data)
             entry = {
                 "path": "sample.srsc", "status": "examined",
+                "file_size": len(data),
                 "sha256": "g" * 64,
             }
             with self.assertRaisesRegex(ValueError, "hash"):
@@ -135,6 +143,7 @@ class CrossKindOrderTests(unittest.TestCase):
             linked.symlink_to(outside)
             entry = {
                 "path": linked.name, "status": "examined",
+                "file_size": len(data),
                 "sha256": hashlib.sha256(data).hexdigest(),
             }
             with self.assertRaisesRegex(ValueError, "symlink"):

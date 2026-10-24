@@ -102,9 +102,11 @@ at least as large as its cutoff change occur 575 and six times respectively;
 the aligned Europe counts relative to its own cutoff changes are 36,893 and
 43,133. All 44,101 aligned frames used to calculate those preceding steps
 match between images. These rankings compare sample differences, not perceived
-loudness or click audibility. Endianness and channel interpretation follow the
-prior analysis; input hashes and the alignment do not establish rip fidelity,
-cause, mastering choices, or music content. The analysis reads files through
+loudness or click audibility. These numeric sample values are conditional on
+the prior little-endian interpretation; the source CUE/BIN files do not record
+the ripper or byte-swap setting. Raw audio output conventions vary across tools. A centered-window spectral cross-check favors little-endian decoding for these files, but it is not an independent rip or decode; see the byte-order limitation in [the comparison note](cd-audio-comparison.md#pcm-byte-order-limitation).
+Input hashes and alignment establish the measured byte snapshots, not rip
+fidelity, byte order, cause, mastering choices, or music content. The analysis reads files through
 read-only mappings, hashes them separately, and does not rule out concurrent
 modification between hashing and measurement. Confidence is high for the
 specified aligned sample snapshots, limited for acoustic interpretation.

@@ -240,6 +240,50 @@ than reject otherwise valid unusual payload placement. Five synthetic tests
 cover structural truncation, count limits, missing selected records, table
 overlap, invalid inventory metadata, and a symlink path. A fresh hash-checked
 run reproduced the prior 23-file / 4,445-entry discriminator and flag totals.
+The first full CLI invocation exposed a missing `json` import; the import is
+fixed and a new synthetic command-path regression test verifies
+machine-readable output. The command now completes with six synthetic tests
+passing and reports the same 23-file / 4,445-entry totals. Its
+`unparsed_trailing_bytes` count (2,019,088) is data left after the measured
+fields, not a claim that the payload has that many format-level trailing bytes.
+
+### Cross-extension selector and storage-branch sweep, 2026-10-23
+
+**Input:** hash-checked installed US retail SRSC files, using the private
+`research/exports/srsc-records/us.json` inventory. **Method:**
+`measure_level_0001_inventory.py` with Python 3.14.7 and zlib
+1.3.1.zlib-ng; the existing independent block parser and GCC 15.3.1
+debug/release inspectors provided a second check for the 23 selected level files.
+**Confidence:** high for this inventoried US sample; other editions and
+unextracted or runtime-created files remain outside the comparison.
+
+The hash-checked SRSC inventory contains 178 examined US retail files. A
+bounded scan of every table found the `(1,0,0)` selector exactly once in 23
+files, all `.lvl`; no such record appeared in the other 155 files. All 23
+selected payloads used storage word `1`, selecting the traced positive-storage
+path. The independent bounded decoder accepted 4,445 blocks, all as complete
+zlib streams with the derived decoded sizes. This extends selector coverage
+across the inventoried extensions; it does not establish that other editions,
+unextracted assets, or runtime-created files lack alternate storage words.
+
+The reproducible tool verifies each inventory file's recorded size and SHA-256
+before reading its SRSC table, rejects duplicate selector matches and table
+overlap, and reports only aggregate per-extension counts:
+
+```sh
+python3 tools/research/measure_level_0001_inventory.py \
+  research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research \
+  -p 'test_measure_level_0001_inventory.py' -v
+```
+
+Against this installed-US inventory, the command reported 178 files examined,
+23 `(1,0,0)` records in `.lvl`, 4,445 blocks and 4,445 complete zlib streams;
+the two synthetic tests passed. The existing Python/C++ cross-check also
+matched the same 23 level records with both GCC debug and release inspectors;
+each reported storage word `1`, 4,445 complete streams, 628,856 grid items,
+and 542,791 cells. The inventory is private and no media or assets are
+included in this repository.
 
 ```sh
 sha256sum research/binaries/us/Drakan.exe

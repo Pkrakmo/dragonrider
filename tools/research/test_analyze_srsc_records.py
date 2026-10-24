@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Synthetic tests for SRSC research measurements."""
+import hashlib
 import struct
 import tempfile
 import unittest
@@ -28,6 +29,9 @@ class RecordMeasurementsTest(unittest.TestCase):
         self.assertTrue(result['last_range_ends_at_table'])
         self.assertEqual(result['duplicate_keys'], 1)
         self.assertTrue(result['table_ends_at_eof'])
+        contents = self.path.read_bytes()
+        self.assertEqual(result['file_size'], len(contents))
+        self.assertEqual(result['sha256'], hashlib.sha256(contents).hexdigest())
 
     def test_bad_range_gap_and_trailing_bytes_are_measured(self):
         table = struct.pack('<HIII', 1, 2, 11, 1) + struct.pack('<HIII', 1, 3, 14, 1)

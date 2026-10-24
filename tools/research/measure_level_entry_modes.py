@@ -3,6 +3,7 @@
 import argparse
 from collections import Counter
 import hashlib
+import json
 from pathlib import Path
 import re
 import struct

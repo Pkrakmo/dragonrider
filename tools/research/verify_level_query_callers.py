@@ -24,6 +24,7 @@ EXPECTED_CALLERS = frozenset({
 })
 
 _CALL = re.compile(r"^\s*([0-9a-fA-F]+):.*\bcall\s+0x([0-9a-fA-F]+)\b")
+_JMP = re.compile(r"^\s*([0-9a-fA-F]+):.*\bjmp\s+0x([0-9a-fA-F]+)\b")
 
 
 def direct_callers(disassembly, target=QUERY_HELPER):
@@ -31,6 +32,16 @@ def direct_callers(disassembly, target=QUERY_HELPER):
     result = set()
     for line in disassembly.splitlines():
         match = _CALL.match(line)
+        if match and int(match.group(2), 16) == target:
+            result.add(int(match.group(1), 16))
+    return result
+
+
+def direct_jumps(disassembly, target=QUERY_HELPER):
+    """Extract direct unconditional jumps to *target* from GNU objdump text."""
+    result = set()
+    for line in disassembly.splitlines():
+        match = _JMP.match(line)
         if match and int(match.group(2), 16) == target:
             result.add(int(match.group(1), 16))
     return result
@@ -58,6 +69,7 @@ def main():
         [args.objdump, "-d", "-Mintel", str(args.executable)],
         check=True, capture_output=True, text=True)
     observed = direct_callers(completed.stdout)
+    jumps = direct_jumps(completed.stdout)
     if observed != EXPECTED_CALLERS:
         missing = sorted(EXPECTED_CALLERS - observed)
         unexpected = sorted(observed - EXPECTED_CALLERS)
@@ -65,7 +77,12 @@ def main():
             "direct query-helper caller inventory differs "
             f"(missing={[hex(value) for value in missing]}, "
             f"unexpected={[hex(value) for value in unexpected]})")
-    print(f"Verified direct calls to 0x{QUERY_HELPER:08x}: {len(observed)}")
+    if jumps:
+        raise ValueError(
+            "unexpected direct query-helper jumps "
+            f"({[hex(value) for value in sorted(jumps)]})")
+    print(f"Verified direct transfers to 0x{QUERY_HELPER:08x}: "
+          f"{len(observed)} calls, {len(jumps)} unconditional jumps")
 
 
 if __name__ == "__main__":

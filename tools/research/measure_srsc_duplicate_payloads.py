@@ -2,15 +2,46 @@
 """Compare duplicate-selector payload ranges without exporting their contents."""
 import argparse
 from collections import Counter, defaultdict
+import hashlib
+import io
 import json
 from pathlib import Path
+import re
 import struct
 
-from measure_srsc_lookup import read_records
+from measure_level_0001 import safe_inventory_path
 
 
 MAX_COMPARISON_BYTES = 64 * 1024 * 1024
 CHUNK = 65536
+_SHA256 = re.compile(r'[0-9a-f]{64}\Z')
+
+
+def read_verified_records(root, entry):
+    """Return one immutable file snapshot and its bounded SRSC records."""
+    if not isinstance(entry, dict) or entry.get('status') != 'examined':
+        raise ValueError('inventory contains an unexamined file')
+    size = entry.get('file_size')
+    digest = entry.get('sha256')
+    if type(size) is not int or size < 0:
+        raise ValueError('invalid inventory file size')
+    if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+        raise ValueError('invalid inventory hash')
+    path = safe_inventory_path(root, entry.get('path'))
+    data = path.read_bytes()
+    if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
+        raise ValueError('inventory size or hash mismatch')
+    if len(data) < 12 or data[:4] != b'SRSC':
+        raise ValueError('not an SRSC header')
+    version, table, count = struct.unpack_from('<HIH', data, 4)
+    table_end = table + count * 14
+    if version != 0x100 or not count or table < 12 or table_end > len(data):
+        raise ValueError('invalid bounded table')
+    records = list(struct.iter_unpack('<HHHII', data[table:table_end]))
+    for _, _, _, start, length in records:
+        if start < 12 or start > table or length > table - start:
+            raise ValueError('record outside bounded pre-table range')
+    return data, records
 
 
 def same_bytes(stream, first, other):
@@ -67,27 +98,18 @@ def main():
     root = args.root.resolve(strict=True)
     entries = json.loads(args.inventory.read_text(encoding='utf-8'))['files']
     totals = Counter()
+    seen_paths = set()
     for entry in entries:
-        if entry['status'] != 'examined':
-            raise ValueError('inventory contains unexamined files')
-        selectors = read_records(root, entry)
-        with (root / entry['path']).open('rb') as stream:
-            header = stream.read(12)
-            _, table, count = struct.unpack_from('<HIH', header, 4)
-            stream.seek(table)
-            raw = stream.read(count * 14)
-            if len(raw) != count * 14 or count != len(selectors):
-                raise ValueError('table changed during measurement')
-            records = list(struct.iter_unpack('<HHHII', raw))
-            for i, (kind, second, third, start, length) in enumerate(records):
-                if (kind, second, third) != selectors[i]:
-                    raise ValueError('table changed during measurement')
-                if start < 12 or start + length > table:
-                    raise ValueError('record outside bounded pre-table range')
-            result = compare_groups(records, stream)
-            totals.update(result)
-            totals['files_examined'] += 1
-            totals['files_with_duplicates'] += result['groups'] > 0
+        if not isinstance(entry, dict) or not isinstance(entry.get('path'), str):
+            raise ValueError('invalid inventory path')
+        if entry['path'] in seen_paths:
+            raise ValueError('duplicate inventory path')
+        seen_paths.add(entry['path'])
+        data, records = read_verified_records(root, entry)
+        result = compare_groups(records, io.BytesIO(data))
+        totals.update(result)
+        totals['files_examined'] += 1
+        totals['files_with_duplicates'] += result['groups'] > 0
     print(json.dumps(dict(sorted(totals.items())), indent=2))
 
 

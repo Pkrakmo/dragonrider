@@ -7,7 +7,7 @@ from pathlib import Path
 import struct
 import zlib
 
-from analyze_srsc_payloads import inspect
+from analyze_srsc_payloads import inspect_with_snapshot
 
 MAX_BYTES = 16 * 1024 * 1024
 
@@ -69,7 +69,7 @@ def main():
     for path in sorted(args.root.rglob('*')):
         if not path.is_file() or path.is_symlink():
             continue
-        examined = inspect(path, args.root)
+        examined, data = inspect_with_snapshot(path, args.root)
         if examined is None:
             continue
         if examined['status'] != 'examined':
@@ -78,27 +78,25 @@ def main():
         summary['files'] += 1
         summary['invalid_ranges'] += examined['invalid_ranges']
         records = []
-        with path.open('rb') as stream:
-            for r in examined['records']:
-                summary['records'] += 1
-                if r['length'] > MAX_BYTES:
-                    m = {'status': 'input_cap'}
-                else:
-                    stream.seek(r['start'])
-                    payload = stream.read(r['length'])
-                    if len(payload) != r['length']:
-                        raise OSError(f'truncated payload: {path}')
-                    m = measure(payload, r['b'] * r['c'])
-                summary[m['status']] += 1
-                if 'word_at_46' in m:
-                    summary[f"word_at_46_{m['word_at_46']}"] += 1
-                for name in ('decoded_equals_product', 'declared_bytes_consumed',
-                             'remaining_equals_product', 'trailing_length_prefix_matches'):
-                    summary[name] += int(bool(m.get(name)))
-                if m.get('status') == 'zlib_complete' and m['trailing_length'] == 0:
-                    summary['zlib_without_trailing'] += 1
-                records.append({'index': r['index'], 'start': r['start'],
-                                'a': r['a'], 'b': r['b'], 'c': r['c'], 'd': r['d'], **m})
+        for r in examined['records']:
+            summary['records'] += 1
+            if r['length'] > MAX_BYTES:
+                m = {'status': 'input_cap'}
+            else:
+                payload = data[r['start']:r['start'] + r['length']]
+                if len(payload) != r['length']:
+                    raise OSError(f'truncated payload: {path}')
+                m = measure(payload, r['b'] * r['c'])
+            summary[m['status']] += 1
+            if 'word_at_46' in m:
+                summary[f"word_at_46_{m['word_at_46']}"] += 1
+            for name in ('decoded_equals_product', 'declared_bytes_consumed',
+                         'remaining_equals_product', 'trailing_length_prefix_matches'):
+                summary[name] += int(bool(m.get(name)))
+            if m.get('status') == 'zlib_complete' and m['trailing_length'] == 0:
+                summary['zlib_without_trailing'] += 1
+            records.append({'index': r['index'], 'start': r['start'],
+                            'a': r['a'], 'b': r['b'], 'c': r['c'], 'd': r['d'], **m})
         files.append({'path': examined['path'], 'sha256': examined['sha256'], 'records': records})
     output = {'root': str(args.root), 'summary': dict(sorted(summary.items())), 'files': files}
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -79,6 +79,31 @@ measurement did not apply the runtime version gate or establish that any
 individual resource was loaded, and does not prescribe a format-wide
 requirement. It writes no retail bytes.
 
+## Third-selector comparison with the bounded loader branch, 2026-10-23
+
+The hash-pinned US retail executable's selector loop checks the third word for
+zero before checking whether the first selector is `0x0030`; see the bounded
+caller evidence in [the SRSC field-anchor note](srsc-record-field-anchors-2026-10-23.md).
+To compare that branch with installed data, the aggregate third-selector tool
+was extended to include kind `0x0030`. It verified all 178 US inventory hashes
+and reported 39 `0x0030` records, with all 39 third words zero. The palette
+reader's prior bounded payload measurements were unchanged. An independent
+`palette_measure.py` scan also reported 39 candidate records with offset-4
+word zero; its 178 examined paths and SHA-256 values exactly matched the SRSC
+inventory.
+
+This matches the observed zero-predicate branch in the inventoried US sample;
+it does not establish why the third word is zero, whether other `0x0030`
+records exist in other editions or unextracted files, or a format-wide rule.
+Reproduce with:
+
+```sh
+python3 tools/research/measure_srsc_third_selector_distribution.py \
+  research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research \
+  -p 'test_measure_srsc_third_selector_distribution.py' -v
+```
+
 ## Reproduction
 
 Close Ghidra GUI sessions using the project. The cooperative lock does not
@@ -142,4 +167,19 @@ for path in Path('research/installed/us').rglob('*'):
             files += 1
 print('files', files, dict(counts))
 PY
+```
+
+## Inspector snapshot recheck, 2026-10-23
+
+`verify_palette_inspector.py` now validates each candidate file's recorded size
+and SHA-256, parses the selected table and entry bytes from that same snapshot,
+and passes a per-file temporary copy to `dragonrider_inspect`. Three synthetic
+tests cover a successful comparison, a stale hash and a symlinked inventory
+path. Debug and release inspectors each matched 39/39 palette entry summaries
+again. This confirms the selected byte comparisons against the hash-verified
+inputs; it does not establish universal palette resolution or visual output.
+
+```sh
+python3 tools/research/verify_palette_inspector.py build/debug/dragonrider_inspect research/installed/us research/exports/asset-inventory/us.json
+python3 tools/research/verify_palette_inspector.py build/release/dragonrider_inspect research/installed/us research/exports/asset-inventory/us.json
 ```
