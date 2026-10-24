@@ -200,6 +200,23 @@ int main() {
     check(two_result.grid_items == 8 && two_result.minimum_transformed_word == -2 &&
           two_result.maximum_transformed_word == 2 && two_result.cell_items == 2 &&
           two_result.cells_negative_first_dword == 2, "multiple grid blocks");
+    // The API documents that callbacks from complete earlier blocks remain
+    // observable when a later block is truncated; callers must discard them
+    // when inspection fails.
+    auto truncated_second_block = two_grids;
+    truncated_second_block.pop_back();
+    std::size_t earlier_grid_callbacks = 0;
+    std::size_t earlier_cell_callbacks = 0;
+    bool second_block_rejected = false;
+    try {
+        (void)inspect_level_0001(truncated_second_block, 2, 1, 42, 84, {},
+            [&](const auto&) { ++earlier_grid_callbacks; },
+            [&](const auto&) { ++earlier_cell_callbacks; });
+    } catch (const std::out_of_range&) {
+        second_block_rejected = true;
+    }
+    check(second_block_rejected && earlier_grid_callbacks == 4 && earlier_cell_callbacks == 1,
+          "later truncated block leaves earlier callback results observable");
     // A grid exceeding one inflate output chunk, including word extrema.
     const std::size_t large_size = 4 * 101 * 101 + 26 * 100 * 100;
     std::vector<unsigned char> large(large_size, 0);

@@ -106,6 +106,24 @@ class CrossKindOrderTests(unittest.TestCase):
             inventory.write_text(json.dumps({"not_files": []}), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "inventory"):
                 load_inventory(inventory)
+            inventory.write_text(json.dumps({"files": []}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "empty"):
+                load_inventory(inventory)
+            inventory.write_text("not json", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "inventory"):
+                load_inventory(inventory)
+
+    def test_rejects_non_hex_inventory_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data = srsc([(0x0101, 1, 0)])
+            (root / "sample.srsc").write_bytes(data)
+            entry = {
+                "path": "sample.srsc", "status": "examined",
+                "sha256": "g" * 64,
+            }
+            with self.assertRaisesRegex(ValueError, "hash"):
+                read_records(root, entry)
 
     def test_rejects_symlinked_inventory_file(self):
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside_directory:

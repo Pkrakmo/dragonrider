@@ -38,6 +38,13 @@
 - **Inferred:** plausible explanation; not yet independently confirmed.
 - **Unknown:** no reliable evidence.
 
+## Coverage map
+
+The [research coverage map](research/coverage-map.md) gives a bounded,
+reproducible view of topic states and next questions. Its totals count tracked
+topics by evidence and implementation category; they are deliberately not a
+percentage of compatibility.
+
 ## Current observations
 - **Observed and inferred (2026-10-19):** a `0x0302` new-object path builds a
   candidate waveform-format structure and passes it through a conditional

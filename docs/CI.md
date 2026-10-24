@@ -74,6 +74,15 @@ checks the reviewed source allowlist and synthetic test inputs locally. It
 does not verify hosted CI; `actionlint`, `act`, Docker, and a container API
 socket were unavailable in that session.
 
+On 2026-10-23, running all CI suites from a fresh helper snapshot exposed that
+the coverage-map tests require public Markdown evidence omitted by the original
+allowlist. The helper now copies tracked `docs/` Markdown and JSON plus the
+top-level `TODO.md`; it still excludes the private top-level `research/`
+directory, Git metadata, and build outputs. The corrected snapshot passed fresh
+GCC debug and release builds with 17/17 CTests each, plus 268 research, 4 disc,
+and 6 Ghidra Python tests. `actionlint`, `act`, and a container API socket were
+unavailable, so hosted CI remains unverified.
+
 ## Running the workflow locally
 
 [`act`](https://nektosact.com/) runs GitHub Actions locally through a Docker

@@ -10,6 +10,7 @@ from collections import Counter, defaultdict
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
 
 
@@ -20,6 +21,7 @@ KIND_PAIRS = (
     ("0200_to_0201", 0x0200, 0x0201),
     ("0302_to_0301", 0x0302, 0x0301),
 )
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _safe_inventory_path(root, value):
@@ -48,7 +50,7 @@ def read_records(root, entry):
     if not isinstance(entry, dict) or entry.get("status") != "examined":
         raise ValueError("inventory contains unexamined files")
     expected_hash = entry.get("sha256")
-    if not isinstance(expected_hash, str) or len(expected_hash) != 64:
+    if not isinstance(expected_hash, str) or not _SHA256.fullmatch(expected_hash):
         raise ValueError("invalid inventory hash")
     path = _safe_inventory_path(root, entry.get("path"))
     size = path.stat().st_size
@@ -134,10 +136,14 @@ def aggregate_file_completeness(records, totals):
 
 
 def load_inventory(path):
-    document = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(document, dict) or not isinstance(document.get("files"), list):
-        raise ValueError("invalid inventory")
-    return document["files"]
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        entries = document["files"]
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise ValueError("invalid inventory") from error
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("empty or invalid inventory")
+    return entries
 
 
 def main():
@@ -146,6 +152,8 @@ def main():
     parser.add_argument("inventory", type=Path)
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("root is not a directory")
     entries = load_inventory(args.inventory)
     relationship_totals = {label: Counter() for label, _, _ in KIND_PAIRS}
     completeness = {label: Counter() for label, _, _ in KIND_PAIRS}

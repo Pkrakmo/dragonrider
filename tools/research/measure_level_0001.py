@@ -5,7 +5,61 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
+
+
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+
+
+def load_inventory(path):
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        entries = document["files"]
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise ValueError("invalid inventory") from error
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("empty or invalid inventory")
+    return entries
+
+
+def safe_inventory_path(root, value):
+    if not isinstance(value, str):
+        raise ValueError("invalid inventory path")
+    relative = Path(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("invalid inventory path")
+    candidate = root / relative
+    try:
+        candidate.relative_to(root)
+    except ValueError as error:
+        raise ValueError("invalid inventory path") from error
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("symlink in inventory path")
+    if not candidate.is_file():
+        raise ValueError("inventory path is not a regular file")
+    return candidate
+
+
+def level_candidates(entries):
+    selected = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("invalid inventory entry")
+        path = entry.get("path")
+        if not isinstance(path, str):
+            raise ValueError("invalid inventory path")
+        if Path(path).suffix.lower() == ".lvl" and "candidate_table" in entry:
+            expected_hash = entry.get("sha256")
+            if not isinstance(expected_hash, str) or not _SHA256.fullmatch(expected_hash):
+                raise ValueError("invalid inventory hash")
+            selected.append(entry)
+    if not selected:
+        raise ValueError("inventory contains no SRSC level candidates")
+    return selected
 
 
 def decode_prefix(payload):
@@ -46,16 +100,17 @@ def main():
     parser.add_argument("root", type=Path)
     parser.add_argument("inventory", type=Path)
     args = parser.parse_args()
-    files = [item for item in json.loads(args.inventory.read_text())["files"]
-             if Path(item["path"]).suffix.lower() == ".lvl" and "candidate_table" in item]
-    if not files:
-        parser.error("inventory contains no SRSC level candidates")
+    root = args.root.resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("root is not a directory")
+    files = level_candidates(load_inventory(args.inventory))
     counts, inner, names, tails = [], [], [], []
     indices_total = out_of_range = high_words = 0
     failures = []
     for item in files:
         try:
-            data = (args.root / item["path"]).read_bytes()
+            path = safe_inventory_path(root, item["path"])
+            data = path.read_bytes()
             if hashlib.sha256(data).hexdigest() != item["sha256"]:
                 raise ValueError("inventory hash mismatch")
             if len(data) < 12 or data[:4] != b"SRSC":

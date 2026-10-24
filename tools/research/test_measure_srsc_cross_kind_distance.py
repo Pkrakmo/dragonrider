@@ -124,6 +124,19 @@ class CrossKindDistanceTests(unittest.TestCase):
             inventory.write_text("nope", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "invalid inventory"):
                 load_entries(inventory)
+            inventory.write_text(json.dumps({"not_files": []}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid inventory"):
+                load_entries(inventory)
+
+    def test_rejects_non_hex_inventory_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data = srsc([(0x0101, 1, 0, 12, 0)])
+            (root / "sample").write_bytes(data)
+            with self.assertRaisesRegex(ValueError, "hash"):
+                read_verified_records(root, {
+                    "path": "sample", "status": "examined", "sha256": "g" * 64,
+                })
 
 
 if __name__ == "__main__":

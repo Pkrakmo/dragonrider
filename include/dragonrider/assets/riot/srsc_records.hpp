@@ -15,6 +15,19 @@ struct SrscRecord {
     std::uint32_t length;
 };
 
+// A descriptive summary of where validated payload ranges lie relative to an
+// SRSC table. These measurements do not impose a file-layout requirement.
+struct SrscPayloadLayout {
+    std::size_t before_table = 0;
+    std::size_t overlapping_table = 0;
+    std::size_t after_table = 0;
+    std::size_t contiguous_transitions = 0;
+    std::size_t gap_transitions = 0;
+    std::size_t overlap_transitions = 0;
+    bool first_starts_at_or_after_header = false;
+    bool last_ends_at_table = false;
+};
+
 // Parse exactly count entries from an independently read table and validate
 // their ranges against the complete file size, without loading payload bytes.
 // A zero count or truncated table is rejected before allocating the result;
@@ -26,6 +39,14 @@ struct SrscRecord {
 // Validates the header, table, and each payload range against the input size.
 // The returned records preserve table order; selector semantics are unknown.
 [[nodiscard]] std::vector<SrscRecord> read_srsc_records(std::span<const std::byte> bytes);
+
+// Summarize table-order payload placement after checking every supplied range.
+// table_size describes the complete on-disk table and the fixed 12-byte SRSC
+// header is used only for the first-range observation. Payloads are not
+// required to be contiguous or to precede the table.
+[[nodiscard]] SrscPayloadLayout summarize_srsc_payload_layout(
+    std::span<const SrscRecord> records, std::uint32_t table_offset, std::size_t table_size,
+    std::uintmax_t file_size);
 
 // An explicit order maps each current table position to an original record index.
 // Construction requires the records to remain in the same order while used.
