@@ -65,3 +65,19 @@ python3 -m unittest discover -s tools/research -p 'test_*.py' -v
 The two outputs were identical; all five research-tool tests passed. The new
 synthetic test exercises a measured prefix, two invalid ranges and a different
 record value. It tests the measurement code, not the original game's behavior.
+
+## Single-snapshot recheck, 2026-10-23
+
+`analyze_srsc_payloads.inspect_with_snapshot` now returns the exact byte
+snapshot used for parsing and SHA-256 calculation. Files without an `SRSC`
+header are skipped after reading 12 bytes. The related
+`measure_selector_0040.py` consumes its selected ranges from those bytes rather
+than reopening each file after the prefix scan. The synthetic payload test and
+two selector-`0x0040` tests passed. Fresh scans reproduced the earlier results:
+39 files and 5,993 candidates (5,878 `.txd`, 115 `.rrc`), with all 5,993
+satisfying the observed multiplication; the bounded follow-up again found
+5,991 complete zlib streams and two zero-word records. Private aggregate
+outputs were written under `/tmp`; each compared byte-for-byte with its
+previous private inventory. This makes hashing, prefix parsing and bounded
+payload measurement refer to one snapshot; it does not establish format
+semantics or runtime decoding.

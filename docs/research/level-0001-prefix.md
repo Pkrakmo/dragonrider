@@ -147,6 +147,15 @@ python3 -m unittest discover -s tools/research -p 'test_measure_level_inner_grap
 python3 -m unittest discover -s tools/research -p 'test_verify_level_links.py' -v
 ```
 
+## Verified level-link inspector snapshot recheck, 2026-10-23
+
+`verify_level_links.py` now sends a temporary copy of the exact verified bytes
+used for independent decoding to the inspector. Debug and release builds
+matched the same 23 levels and aggregate counts: 4,445 entries and 207,353
+inner values, with every measured inner value equal to its entry index. These
+remain bounded observations of this inventory, not a general rule for other
+levels or executable paths.
+
 ## First-dword lookup and type-12 candidates, 2026-10-19
 
 **Observed, static:** with the same pinned US executable and GNU objdump
@@ -212,6 +221,15 @@ python3 tools/research/verify_level_entry.py research/installed/us research/expo
 python3 -m unittest discover -s tools/research -p 'test_measure_0102_level_keys.py' -v
 python3 -m unittest discover -s tools/research -p 'test_verify_level_entry.py' -v
 ```
+
+## Verified entry-inspector snapshot recheck, 2026-10-23
+
+`verify_level_entry.py` now passes the same verified byte snapshot used by its
+independent decoder to the inspector's selected-entry and first-word lookup
+commands. Debug and release builds each matched all 4,445 decoded entries,
+67 selected-entry comparisons, and 90 lookup comparisons across 23 levels;
+the probe also matched all 4,445 entry prefixes. This confirms consistency for
+the measured inventory, not the meaning or runtime use of every field.
 
 ## Directory-name comparison for type-12 candidate ranges (2026-10-19)
 

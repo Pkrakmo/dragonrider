@@ -2,10 +2,9 @@
 
 ## Scope and provenance
 
-This is a documentation-only review of the existing bounded evidence. It does
-not add a binary observation, open a Ghidra database, read private media, or
-run the game. The underlying input and evidence scope remain the unpatched US
-retail executable, SHA-256
+This note synthesizes the bounded reports linked below; it contains no
+reproduced executable bytes or bulk disassembly. Those reports use the
+unpatched US retail executable, SHA-256
 `23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`, and
 the hash-checked installed-US samples described in
 [the prefix trace](level-0001-prefix.md),
@@ -26,7 +25,12 @@ the hash-checked installed-US samples described in
 - The bounded query helper at `0x00420e10` applies discriminator-dependent
   rejection under several query flags. The observed call from `0x0043fe40`
   supplies literal flag value 4, so that call does not enable the documented
-  bit-`0x10` rejection. Other callers and their flags have not been enumerated.
+  bit-`0x10` rejection. The later direct-caller sweep found 23 relative calls:
+  17 pass literal 5, five pass literal 4, and one forwards a caller-derived
+  value. The `0x0044cb63` value was traced to a fifth argument whose sole
+  direct caller passes 5. The `0x00420d93` value is gated by an enclosing bit
+  test and nonzero check; direct zero-valued callers cannot reach that branch
+  as shown, while recursive and wrapper forwarding remain unresolved.
 - Static analysis also shows a mutable per-cell pointer-list structure and an
   object-update call for selected members. Neither that membership nor the
   update establishes a relationship to the serialized discriminator.
@@ -42,13 +46,13 @@ membership criteria, rendering consequences, and behavior in other editions
 remain unknown. In particular, the observed chain order does not justify
 assigning a transparency, layering, collision, or gameplay meaning to value 2.
 
-## One bounded next static procedure
+## Completed bounded direct-caller procedure
 
-The narrowest next question is which *direct* callers of `0x00420e10` provide
-which query flags. With the GUI closed and without opening a Ghidra project,
-run the following against the pinned executable. It intentionally limits the
-call-site list and the instruction windows; an empty direct-call result would
-not exclude indirect calls.
+The direct-caller procedure below was completed against the pinned executable
+with GNU objdump 2.45.1-5.fc43. Its bounded results, per-call windows, and
+hash-pinned verifier are recorded in the [direct-caller report](level-0001-query-callers-2026-10-23.md).
+The seven query-branch anchors are independently guarded by the
+[branch verifier](level-0001-query-flag-branches-2026-10-23.md).
 
 ```sh
 sha256sum research/binaries/us/Drakan.exe
@@ -62,10 +66,10 @@ objdump -d -Mintel --start-address=0x0043fe60 --stop-address=0x0043ff10 \
   research/binaries/us/Drakan.exe
 ```
 
-For each result, record the executable hash, caller address, exact bounded
-window, flag provenance (literal, register, or unresolved), and confidence.
-Do not treat a register-derived value as a constant without tracing its bounded
-definition. Corroborate any consequential finding with a separately bounded
-raw disassembly window. This procedure can classify direct call sites; it
-cannot establish feasible runtime execution, virtual/indirect callers, object
-identity, or visible behavior.
+Those observations classify direct relative calls only. The numeric value and
+source of the remaining wrapper-forwarded argument, indirect and virtual
+entries, path feasibility, flag meanings, discriminator semantics, and visual
+effect remain unknown. The wrapper table/raw-section scans are documented in
+[the wrapper follow-up](level-0001-wrapper-table-2026-10-23.md) and
+[the indirect-call note](level-0001-indirect-40cc15-2026-10-23.md); the static
+evidence does not identify a further bounded direct edge to trace.

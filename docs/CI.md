@@ -74,6 +74,64 @@ checks the reviewed source allowlist and synthetic test inputs locally. It
 does not verify hosted CI; `actionlint`, `act`, Docker, and a container API
 socket were unavailable in that session.
 
+On 2026-10-23, running all CI suites from a fresh helper snapshot exposed that
+the coverage-map tests require public Markdown evidence omitted by the original
+allowlist. The helper now copies tracked `docs/` Markdown and JSON plus the
+top-level `TODO.md`; it still excludes the private top-level `research/`
+directory, Git metadata, and build outputs. The corrected snapshot passed fresh
+GCC debug and release builds with 17/17 CTests each, plus 268 research, 4 disc,
+and 6 Ghidra Python tests. `actionlint`, `act`, and a container API socket were
+unavailable, so hosted CI remains unverified.
+
+On 2026-10-23, a second fresh snapshot after additional verifier and audio
+comparison changes contained 355 allowlisted files. Review found no top-level
+private `research/`, `.git`, `.env`, or build directory and no original media,
+executable, archive, or Ghidra project files; public `docs/research/` notes
+and synthetic research tests are intentionally included. Fresh GCC 15.3.1
+debug and release builds each passed 17/17 CTests. The snapshot Python suites
+passed 328 research, 5 disc, and 6 Ghidra tests. The current checkout also
+passed both configured build/test suites and all three Python suites.
+`actionlint` and `act` were not installed and no container API socket was
+present, so these results remain local and do not verify hosted CI.
+
+A third fresh snapshot on 2026-10-23 included the latest selector-verifier and
+audio CLI snapshot-consistency changes. It contained 358 allowlisted files and
+no top-level private `research/`, `.git`, `.env`, or build directory. Fresh GCC
+15.3.1 debug and release builds each passed 17/17 CTests; the snapshot Python
+suites passed 334 research, 6 disc, and 6 Ghidra tests. This is local snapshot
+evidence only; hosted CI remains unverified.
+
+A final fresh 358-file snapshot reran those checks after adding the report's
+explicit little-endian-assumption field, its CLI assertion, and the selector
+verifier's final zero-register instruction anchor. Debug/release CTest
+again passed 17/17 each, and the Python suites again passed 334 research, 6
+disc, and 6 Ghidra tests. The snapshot still excluded private top-level
+research, `.git`, `.env`, and build outputs.
+
+On 2026-10-23, a fresh 362-file allowlisted snapshot included the current
+research verifiers, the Mplayer PE reference scanner, and the CD-DA sample
+byte-order measurement tool. Review found no symlinks, top-level private
+`research/`, `.git`, `.env`, or build directory, and no original media, PE
+binaries, archives, or Ghidra project files. Fresh GCC debug and release builds
+each passed 17/17 CTests; the snapshot Python suites passed 337 research, 11
+disc, and 6 Ghidra tests. These local checks do not verify hosted CI;
+`actionlint`, `act`, and a container API socket remain unavailable.
+
+A fresh 362-file helper snapshot on 2026-10-23 includes the bounded-read
+request-size classifier and its adversarial synthetic cases. Before building,
+the reviewed source snapshot had no symlinks, private top-level `research/`,
+`.git`, `.env`, original media, executable/library binaries, archives or
+Ghidra project files. Fresh GCC 15.3.1 debug and release builds each passed
+17/17 CTests; Python suites passed 347 research, 11 disc and 6 Ghidra tests.
+This remains local evidence only; hosted Linux CI is unverified because
+`actionlint`, `act` and a container API socket are unavailable.
+
+After that snapshot, the audio comparator gained file and directory symlink
+escape regression tests, and the byte-order measurement API gained exact input
+count validation. The current source-tree Python suites reran on 2026-10-23:
+347 research and 13 disc tests passed. This is not a new isolated snapshot or
+C++ build/CTest result.
+
 ## Running the workflow locally
 
 [`act`](https://nektosact.com/) runs GitHub Actions locally through a Docker

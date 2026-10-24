@@ -5,8 +5,13 @@ from collections import Counter
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
 
+from measure_level_0001 import safe_inventory_path
+
+
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 def measure(records):
     """Compare table-order first matches with a stable second-word ordering."""
@@ -37,31 +42,36 @@ def measure(records):
     }
 
 
+def read_snapshot(root, entry):
+    if not isinstance(entry, dict):
+        raise ValueError('invalid inventory entry')
+    relative = entry.get('path')
+    expected_hash = entry.get('sha256')
+    if not isinstance(expected_hash, str) or not _SHA256.fullmatch(expected_hash):
+        raise ValueError('invalid inventory hash')
+    path = safe_inventory_path(root, relative)
+    data = path.read_bytes()
+    expected_size = entry.get('file_size', entry.get('size'))
+    if expected_size is not None and (type(expected_size) is not int or expected_size < 0):
+        raise ValueError('invalid inventory size')
+    if ((expected_size is not None and len(data) != expected_size)
+            or hashlib.sha256(data).hexdigest() != expected_hash):
+        raise ValueError('inventory hash mismatch or size mismatch: ' + str(relative))
+    if len(data) < 12 or data[:4] != b'SRSC':
+        raise ValueError('not an SRSC header')
+    version, table, count = struct.unpack_from('<HIH', data, 4)
+    if version != 0x100 or not count or table < 12 or table > len(data):
+        raise ValueError('invalid bounded table')
+    if count > (len(data) - table) // 14:
+        raise ValueError('invalid bounded table')
+    raw = data[table:table + count * 14]
+    records = [item[:3] for item in struct.iter_unpack('<HHHII', raw)]
+    return data, records
+
+
 def read_records(root, entry):
-    relative = Path(entry['path'])
-    if relative.is_absolute() or '..' in relative.parts:
-        raise ValueError('invalid inventory path')
-    path = root / relative
-    if any(p.is_symlink() for p in [path, *path.parents] if p != root and root in p.parents):
-        raise ValueError('symlink in inventory path')
-    digest = hashlib.sha256()
-    with path.open('rb') as stream:
-        header = stream.read(12)
-        if len(header) != 12 or header[:4] != b'SRSC':
-            raise ValueError('not an SRSC header')
-        version, table, count = struct.unpack_from('<HIH', header, 4)
-        if version != 0x100 or not count or table < 12 or table + count * 14 > path.stat().st_size:
-            raise ValueError('invalid bounded table')
-        stream.seek(0)
-        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
-            digest.update(chunk)
-        if digest.hexdigest() != entry['sha256']:
-            raise ValueError('inventory hash mismatch: ' + str(relative))
-        stream.seek(table)
-        raw = stream.read(count * 14)
-        if len(raw) != count * 14:
-            raise ValueError('short table read')
-    return [item[:3] for item in struct.iter_unpack('<HHHII', raw)]
+    """Return selector tuples from the verified snapshot."""
+    return read_snapshot(root, entry)[1]
 
 
 def main():

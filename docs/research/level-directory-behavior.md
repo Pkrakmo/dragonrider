@@ -78,3 +78,12 @@ objdump -d -Mintel --start-address=0x41f1f0 --stop-address=0x41f21a research/bin
 objdump -s --start-address=0x47d318 --stop-address=0x47d3c8 research/binaries/us/Drakan.exe
 python3 tools/research/verify_level_directory.py build/debug/dragonrider_inspect research/installed/us research/exports/asset-inventory/us.json
 ```
+
+## Verified snapshot comparison recheck, 2026-10-23
+
+The private level-directory comparison now checks each inventory path, size,
+and SHA-256, decodes from those bytes, and passes a temporary snapshot of the
+same bytes to the inspector. Debug and release each matched all 23 US levels,
+164 entries, and the measured entry-count range of 4–10. This improves input
+provenance for the comparison without asserting loader behavior for other
+records or editions.

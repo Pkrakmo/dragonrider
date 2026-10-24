@@ -47,6 +47,29 @@ class ThirdSelectorDistributionTests(unittest.TestCase):
         self.assertTrue(all(counts["records"] == 0
                             for scope in result.values() for counts in scope.values()))
 
+    def test_palette_kind_third_selector_counts(self):
+        result = measure([
+            (0x0030, 4, 0, 12, 2),
+            (0x0030, 8, 7, 14, 2),
+        ])
+        self.assertEqual(dict(result["own_kind"]["0030"]), {
+            "records": 2,
+            "third_zero": 1,
+            "third_nonzero": 1,
+            "nonzero_no_second_match": 1,
+            "nonzero_one_second_match": 0,
+            "nonzero_multiple_second_matches": 0,
+        })
+
+    def test_writer_gate_kind_third_selector_counts(self):
+        result = measure([
+            (0x0051, 0, 0, 12, 2),
+            (0x0051, 1, 2, 14, 2),
+        ])
+        self.assertEqual(result["own_kind"]["0051"]["records"], 2)
+        self.assertEqual(result["own_kind"]["0051"]["third_zero"], 1)
+        self.assertEqual(result["own_kind"]["0051"]["third_nonzero"], 1)
+
     def test_hash_table_and_all_payload_ranges_are_validated(self):
         records = [(0x0101, 1, 0, 12, 4)]
         contents = srsc(records)
@@ -54,14 +77,18 @@ class ThirdSelectorDistributionTests(unittest.TestCase):
             root = Path(directory)
             path = root / "sample"
             path.write_bytes(contents)
-            entry = {"path": "sample", "status": "examined",
+            entry = {"path": "sample", "status": "examined", "file_size": len(contents),
                      "sha256": hashlib.sha256(contents).hexdigest()}
             self.assertEqual(read_verified_records(root, entry), records)
             entry["sha256"] = "0" * 64
-            with self.assertRaisesRegex(ValueError, "hash mismatch"):
+            with self.assertRaisesRegex(ValueError, "hash"):
                 read_verified_records(root, entry)
             entry["sha256"] = hashlib.sha256(contents).hexdigest()
+            with self.assertRaisesRegex(ValueError, "size or hash"):
+                read_verified_records(root, dict(entry, file_size=len(contents) + 1))
+            entry["sha256"] = hashlib.sha256(contents).hexdigest()
             path.write_bytes(srsc([(0x0101, 1, 0, 12, 5)]))
+            entry["file_size"] = path.stat().st_size
             entry["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
             with self.assertRaisesRegex(ValueError, "pre-table"):
                 read_verified_records(root, entry)
@@ -78,7 +105,7 @@ class ThirdSelectorDistributionTests(unittest.TestCase):
             ]
             for contents in cases:
                 path.write_bytes(contents)
-                entry = {"path": "sample", "status": "examined",
+                entry = {"path": "sample", "status": "examined", "file_size": len(contents),
                          "sha256": hashlib.sha256(contents).hexdigest()}
                 with self.assertRaises(ValueError):
                     read_verified_records(root, entry)
@@ -97,9 +124,24 @@ class ThirdSelectorDistributionTests(unittest.TestCase):
             (root / "sample").write_bytes(contents)
             digest = hashlib.sha256(contents).hexdigest()
             with self.assertRaisesRegex(ValueError, "unexamined"):
-                read_verified_records(root, {"path": "sample", "status": "pending", "sha256": digest})
+                read_verified_records(root, {"path": "sample", "status": "pending",
+                                             "file_size": len(contents), "sha256": digest})
             with self.assertRaisesRegex(ValueError, "path"):
-                read_verified_records(root, {"path": "../sample", "status": "examined", "sha256": digest})
+                read_verified_records(root, {"path": "../sample", "status": "examined",
+                                             "file_size": len(contents), "sha256": digest})
+
+    def test_rejects_symlinked_inventory_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            contents = srsc([(0x0101, 1, 0, 12, 0)])
+            target = root / "target"
+            target.write_bytes(contents)
+            link = root / "link"
+            link.symlink_to(target)
+            entry = {"path": "link", "status": "examined", "file_size": len(contents),
+                     "sha256": hashlib.sha256(contents).hexdigest()}
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                read_verified_records(root, entry)
 
 
 if __name__ == "__main__":

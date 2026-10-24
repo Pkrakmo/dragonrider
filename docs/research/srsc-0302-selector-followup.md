@@ -58,8 +58,8 @@ meaning.
 ## Observed: bounded sample comparison
 
 The measurement rechecks each file against the existing inventory, validates
-selected payload ranges against the pre-table region, compares the reread
-selector table with the hash-checked table, and reads at most 65,573 bytes
+selected payload ranges against the pre-table region, checks the selectors
+against the table from that same byte snapshot, and reads at most 65,573 bytes
 per selected record. It emits aggregate counts only. Of 1,561 `0x0302`
 records in 19 files, all contain at least 32 bytes after the length-prefixed
 head. On a **hypothetical new-object path**:
@@ -78,8 +78,8 @@ All nonzero-mode records have the additional `+32` dword. These comparisons
 are byte framing only: they do not decompress payloads or validate requested
 read or processing success. Existing-object behavior may depend on a previous
 object's `+0x22` value, rather than the selected record's `+24`; no cache
-state was reconstructed. The inventory hash precedes a later table and payload
-read, so concurrent modification between those operations is not excluded.
+state was reconstructed. A later single-snapshot recheck is recorded in
+[lookup order](srsc-lookup-order.md#selected-payload-diagnostics-snapshot-recheck-2026-10-23).
 The measured outcomes are not format validation requirements or evidence
 that the third selector identifies these fields.
 
@@ -152,7 +152,9 @@ at the record boundary. Under those assumptions these lengths cannot provide
 a complete zlib stream. This observation concerns record bytes, not actual
 cached-object execution or the preexisting output size at object `+0x22`.
 The calls' return values and actual cache state are not reconstructed, so it
-does not establish what the original game does with those inputs.
+does not establish what the original game does with those inputs. The
+aggregate measurement now parses each table and payload from one verified
+snapshot; see the recheck linked above.
 
 The common path calls `0x00430710` before the mode read; that helper returns
 early when object `+0x5a` is zero. The cached candidate was initially selected
@@ -167,7 +169,9 @@ python3 -m unittest discover -s tools/research -p 'test_measure_0302_followup.py
 ```
 
 The four synthetic tests include cached zero/nonzero modes and bounded input
-lengths. The earlier reread/concurrent-modification qualification applies.
+lengths. The measurement now reads the table and payload from one
+hash-verified snapshot; the separate inspector comparison still reopens the
+source file and retains its concurrent-change limitation.
 
 ## Candidate waveform-format and buffer path, 2026-10-19
 

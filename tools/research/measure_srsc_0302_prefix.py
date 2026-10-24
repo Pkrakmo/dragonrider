@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import struct
 
-from measure_srsc_lookup import read_records
+from measure_srsc_lookup import read_snapshot
 
 
 def classify(payload, record_length=None):
@@ -47,29 +47,25 @@ def main():
     for entry in entries:
         if entry['status'] != 'examined':
             raise ValueError('inventory contains unexamined files')
-        records = read_records(root, entry)
+        data, records = read_snapshot(root, entry)
         totals['files_examined'] += 1
         totals['files_with_0302'] += any(kind == 0x0302 for kind, _, _ in records)
-        with (root / entry['path']).open('rb') as stream:
-            header = stream.read(12)
-            _, table, count = struct.unpack_from('<HIH', header, 4)
-            stream.seek(table)
-            raw = stream.read(count * 14)
-            if len(raw) != count * 14 or count != len(records):
+        _, table, count = struct.unpack_from('<HIH', data, 4)
+        raw = data[table:table + count * 14]
+        if count != len(records):
+            raise ValueError('table changed during measurement')
+        for i, (kind, second, third, start, length) in enumerate(struct.iter_unpack('<HHHII', raw)):
+            if (kind, second, third) != records[i]:
                 raise ValueError('table changed during measurement')
-            for i, (kind, second, third, start, length) in enumerate(struct.iter_unpack('<HHHII', raw)):
-                if (kind, second, third) != records[i]:
-                    raise ValueError('table changed during measurement')
-                if kind != 0x0302:
-                    continue
-                if start < 12 or start + length > table:
-                    raise ValueError('selected payload outside pre-table range')
-                stream.seek(start)
-                amount = min(length, 65537)
-                payload = stream.read(amount)
-                if len(payload) != amount:
-                    raise ValueError('short prefix read')
-                totals.update(classify(payload, length))
+            if kind != 0x0302:
+                continue
+            if start < 12 or start + length > table:
+                raise ValueError('selected payload outside pre-table range')
+            amount = min(length, 65537)
+            payload = data[start:start + amount]
+            if len(payload) != amount:
+                raise ValueError('short prefix read')
+            totals.update(classify(payload, length))
     print(json.dumps(dict(sorted(totals.items())), indent=2))
 
 

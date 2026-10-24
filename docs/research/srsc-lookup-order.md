@@ -129,8 +129,35 @@ these particular duplicate groups would yield the same bytes, but does not
 establish a general duplicate policy or runtime equivalence for other files.
 The comparison limits each equal-length comparison to 64 MiB, validates the
 selected file ranges against the pre-table region, and prints only aggregate
-counts. It rereads table and payload bytes after hashing, so concurrent
-modification remains a limitation.
+counts. The original run reopened table and payload bytes after hashing; the
+2026-10-23 follow-up below changes the comparison to a single verified
+snapshot.
+
+## Shared table-reader snapshot recheck, 2026-10-23
+
+The shared `read_records` helper in `measure_srsc_lookup.py` now reads each
+selected file once, validates its recorded SHA-256 and optional size, and
+parses the record table from those same bytes. It rejects unsafe or symlinked
+paths, malformed hashes, truncated headers, and table bounds that exceed the
+snapshot. This helper is used by the stable-order measurement and several
+other SRSC research scripts; the change strengthens input consistency without
+changing any lookup or format claims.
+
+Four focused tests cover table and hash handling, metadata mismatch, path
+traversal, and symlinks. The full SRSC measurement test selection was also
+rerun after the change.
+
+## Duplicate-payload measurement recheck, 2026-10-23
+
+`measure_srsc_duplicate_payloads.py` was rerun against the current 178-entry
+US inventory. The tool now checks each path, size and hash, parses table and
+payload ranges from one verified byte snapshot, and compares duplicate bytes
+from that same snapshot, removing the former reopen-after-hash race. It
+reproduced two files
+with duplicate full tuples, three later occurrences, and identical lengths
+and bytes for all three comparisons; none shared the same start offset. Its
+four synthetic tests passed. This confirms the earlier bounded sample result
+without establishing a general duplicate policy.
 
 For a model-loader consumer that selects records by relative index, the sampled
 raw-table and simulated reordered-table relationships were checked explicitly;
@@ -227,9 +254,32 @@ three label kinds respectively. Grouping additionally by the label's third
 word gives 0, 1, and 0 repeated occurrences. This is a counterexample to a
 proposed uniqueness rule for the selected comparison, not proof that the
 third word denotes a parent or that the game performs this association. The
-script emits only aggregate counts, not label text or filenames; it rereads
-the table and payloads after hashing, so concurrent modification remains a
-limitation. The kind pairs were selected after inspecting the sample.
+script emits only aggregate counts, not label text or filenames. The kind
+pairs were selected after inspecting the sample. The 2026-10-23 single-snapshot
+recheck below verifies that current payload measurements use the exact bytes
+that passed the inventory hash check.
+
+## Selected payload diagnostics snapshot recheck, 2026-10-23
+
+The `0x0302` prefix and post-prefix field scans, `0x0400` transformed-byte
+scan, selected label framing scan, and same-file label relationship scan now
+use `read_snapshot` for both table selectors and payload bytes. They parse
+table records and bounded payload slices from the returned hash-verified byte
+snapshot instead of reopening the path. The label relationship helper also
+checks table selectors against that same snapshot before normalizing label
+bytes. This removes the prior hash-then-reopen gap for these five aggregate
+measurements; it does not alter their selected record sets or behavioral
+interpretations.
+
+Five focused test modules passed (15 tests total). Fresh scans of all 178
+hash-checked US SRSC files reproduced the documented counts: 1,561 `0x0302`
+prefixes fitting with at least 24 following bytes; 1,561 post-prefix field
+records, including 1,171 zero-mode and 390 nonzero-mode cases; 426 `0x0400`
+records; 1,669 selected label payloads; and the same per-kind label fanout,
+unreferenced-label, duplicate-text, and maximum-fanout totals. The scans emit
+aggregate counts only. These results improve measurement provenance and do
+not establish selector semantics, runtime use, a universal framing rule, or
+format validity requirements.
 
 ## Follow-up: third-word consumers
 
@@ -352,8 +402,8 @@ NUL and 853 trailing NULs. All have at least 24 bytes after that prefix.
 These counts describe only the measured files, not actual execution, text
 encoding, or a universal rule. The scan reads at most 65,537 bytes per record,
 checks the declared record against the pre-table range, and prints no payload
-content. It rereads the table and payload after hashing, leaving concurrent
-modification unexcluded.
+content. The current measurement reads the table and payload from one
+hash-verified snapshot; see the [snapshot recheck](#selected-payload-diagnostics-snapshot-recheck-2026-10-23).
 
 The writer setter and the immediately subsequent `0x0051` initializer have
 matching success preconditions; absent concurrent mutation, successful
@@ -400,6 +450,12 @@ The indexed `0x0102` consumer and its payload comparisons are documented in
 records, a separate post-prefix payload word matches the third selector and
 a unique same-file `0x0101` second selector; the traced consumer skips that
 word. This does not establish a runtime association with `0x0101` records.
+
+A separate consumer at `0x0040E3CA` requests `(0x0022,0,0)` and reads a count
+and length-prefixed strings before two indirect calls. Its bounded evidence and
+178-file absence measurement are recorded in the
+[`0x0022` consumer note](srsc-selector-0022-consumer-2026-10-23.md); entry-point
+reachability and selector meaning remain unknown.
 
 ## Reproduction
 
@@ -448,6 +504,8 @@ python3 tools/research/measure_srsc_0302_prefix.py research/installed/us researc
 python3 tools/research/measure_srsc_link_exceptions.py research/installed/us research/exports/srsc-records/us.json
 python3 tools/research/measure_srsc_label_relationships.py research/installed/us research/exports/srsc-records/us.json
 python3 tools/research/measure_srsc_duplicate_payloads.py research/installed/us research/exports/srsc-records/us.json
+python3 tools/research/measure_srsc_extended_selector_links.py research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research -p 'test_measure_srsc_extended_selector_links.py' -v
 python3 -m unittest discover -s tools/research -p 'test_measure_srsc*.py' -v
 objdump -d -Mintel --start-address=0x432f70 --stop-address=0x43305e research/binaries/us/Drakan.exe
 objdump -d -Mintel --start-address=0x43307d --stop-address=0x43318d research/binaries/us/Drakan.exe
@@ -466,14 +524,26 @@ every nonzero third selector of `0x0102`, `0x0200`, and `0x0302` has exactly
 one same-file second-selector match in `0x0101`, `0x0201`, and `0x0301`,
 respectively: 4,203, 3,221, and 1,561 records. There were no zero, missing, or
 multiple cases in those three selected cross-kind comparisons. Within the
-same kind, the nonzero-third unique/missing counts were `523/0` (`0x0101`),
-`274/3,929` (`0x0102`), `87/3,134` (`0x0200`), `451/2` (`0x0201`), `116/0`
-(`0x0301`), and `571/990` (`0x0302`); none had multiple matches.
+same kind, the nonzero-third unique/missing counts were `0/0` (`0x0030`),
+`0/0` (`0x0051`), `523/0` (`0x0101`), `274/3,929` (`0x0102`),
+`87/3,134` (`0x0200`), `451/2` (`0x0201`), `116/0` (`0x0301`), and
+`571/990` (`0x0302`); none had multiple matches. All 39 sampled `0x0030`
+records have a zero third word, matching the selector loop's observed zero
+check at `0x00435606`; this is a branch/sample correlation, not a semantic
+label or cross-edition rule. All 23 sampled `0x0051` records also have a zero
+third word; the relation to the conditional writer is documented in
+[writer state](srsc-writer-third-state.md#installed-0x0051-third-selector-distribution-2026-10-23).
 
 This is a same-file structural equality measurement, not a runtime lookup,
 selector-semantics, or cross-file-resolution claim. The tool does not emit
-paths, hashes, raw selector values, or payload bytes; its five synthetic tests
+paths, hashes, raw selector values, or payload bytes; its eight synthetic tests
 cover hash, path, header, table, and range rejection.
+
+The 2026-10-23 single-snapshot hardening now verifies file size and hash before
+parsing the table and payload ranges from the same bytes, rejects symlinked or
+duplicate inventory paths, and avoids reopening files after verification. A
+fresh scan reproduced the counts above; eight focused tests passed, including
+size-mismatch and symlink cases. This changes input consistency only.
 
 ## Selected cross-kind table position, 2026-10-23
 
@@ -498,6 +568,47 @@ On 2026-10-23, the tool's synthetic validation was further hardened to reject
 non-hex SHA-256 strings, empty or malformed inventories, and a non-directory
 input root. This changes only rejection behavior; it adds no new retail
 measurement or selector interpretation.
+
+A follow-up now reads each complete file once, validates its size and SHA-256,
+and measures table and payload ranges from that same byte snapshot. A fresh
+run reproduced the counts above across all 178 entries; six focused tests
+passed, including the size-mismatch case. This removes the earlier
+hash-then-reopen gap for this measurement without changing its claims.
+
+## Additional selected third-to-second correlations, 2026-10-23
+
+`measure_srsc_extended_selector_links.py` uses the existing private US SRSC
+inventory and reads each file from a single size/hash-verified snapshot. It
+measures the third word in `0x0207`, `0x0208`, and `0x0209` records against
+second words in same-file `0x0201` records. Across 178 files and 38,926
+records, all 3,122 nonzero `0x0207` values in 29 files, all 99 nonzero
+`0x0208` values in 8 files, and all 3,122 nonzero `0x0209` values in 29 files
+have exactly one matching `0x0201` second word. For the first and third pair,
+the target table entry precedes the source in 3,101 cases and follows it in
+21; for the second pair, all 99 targets precede their sources. None of these
+source third words is zero, missing, or multiply matched.
+
+This extends the selected equality measurements only. Table-index order does
+not establish lookup order, load timing, a reference relationship, selector
+semantics, or runtime use. The inspected model-loader path reads the first
+word of an `i+4` record and branches on `0x0208` versus `0x0209`; it does not
+anchor these third-word matches. At `0x004120EB`, a separate function loads a
+shared callable from `0x00475220` and, after a failed `(0x0100,0x0108)` attempt,
+calls it with pushed values `1`, `0x0209`, `0x0200`, zero, and a local pointer.
+The indirect target, argument ABI, selector meaning, and relation to these
+third-word matches remain unresolved; the push sequence alone is not proof
+that it consumes the records measured here. Three synthetic tests cover
+relation categories, snapshot hash verification, and duplicate paths.
+
+The consumer and indirect-call observations use the US retail executable with
+SHA-256
+`23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`:
+
+```sh
+sha256sum research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x004246c0 --stop-address=0x004247d0 research/binaries/us/Drakan.exe
+objdump -d -Mintel --start-address=0x004120c0 --stop-address=0x00412148 research/binaries/us/Drakan.exe
+```
 
 ## Selected cross-kind table distance, 2026-10-23
 

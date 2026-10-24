@@ -66,8 +66,21 @@ NUL. At the payload position read as the dword above, its high half is zero
 in 3,771 records. All 4,203 table third words are nonzero; only one equals
 that payload high half. These are byte comparisons, not evidence that every
 sample reaches this consumer or that either value has a general semantic name.
-The script rereads each validated file, so concurrent changes between the
-hash check and measurement are not excluded. It outputs aggregate counts only.
+The initial 2026-10-18 script reopened validated files after the hash check,
+so concurrent changes between reads were not excluded in that run. The
+2026-10-23 snapshot recheck below removes that limitation from the current
+measurement script. It outputs aggregate counts only.
+
+## Prefix-measurement snapshot recheck, 2026-10-23
+
+`measure_srsc_0102_prefix.py` now receives the table selectors and full file
+bytes from the same hash-verified `read_snapshot` call. It no longer reopens
+the source file between table parsing and payload measurement. A fresh scan
+reproduced 178 examined files, 39 files with `0x0102`, all 4,203 fitting
+prefixes and ten-byte following regions, and the prior aggregate selector
+comparisons. The six focused tests passed, including stale-hash, unexamined,
+truncation, and out-of-range cases. This changes measurement consistency only;
+it does not establish runtime consumption or selector meaning.
 
 ## Post-prefix word and selector comparison, 2026-10-18
 
@@ -688,9 +701,9 @@ python3 -m unittest discover -s tools/research -p 'test_measure_0102_indirect_ra
 its policy and input bounds are in [ADR 0019](../decisions/0019-srsc-0102-prefix-inspection.md).
 The following independent Python comparison checked all fields and prefix
 CRC32 against both debug and release inspectors for 4,203 records in 39 of 178 hash-checked
-US files; all 4,203 have opaque trailing bytes. The script verifies each input
-snapshot before invoking the inspector, which reopens the file, so concurrent
-same-size modifications are not excluded. No retail bytes are emitted.
+US files; all 4,203 have opaque trailing bytes. The current script stages each
+verified input snapshot to a temporary file before invoking the inspector. No
+retail bytes are emitted.
 
 ```sh
 python3 tools/research/verify_srsc_0102.py research/installed/us research/exports/srsc-records/us.json build/debug/dragonrider_inspect
@@ -705,15 +718,29 @@ runtime resource checks; [ADR 0020](../decisions/0020-srsc-0102-array-inspection
 records the bounds and limits. An independent Python decoder compared the
 selected dword, entry count, array CRC32 and opaque tail length for all 4,203
 records and 84,258 entries across 178 hash-checked US SRSC files, using both
-GCC debug and release inspectors. Each file is hash-checked before the
-inspector separately reopens it; concurrent same-size changes are not excluded.
-No retail bytes are emitted.
+GCC debug and release inspectors. Each verified input snapshot is written to a
+temporary file for the inspector, so its output is compared against the same
+bytes as the independent decoder. No retail bytes are emitted.
 
 ```sh
 python3 tools/research/verify_srsc_0102_array.py research/installed/us research/exports/srsc-records/us.json build/debug/dragonrider_inspect
 python3 tools/research/verify_srsc_0102_array.py research/installed/us research/exports/srsc-records/us.json build/release/dragonrider_inspect
 # Both: files=178 files_with_0102=39 comparisons=4203 entries=84258
 ```
+
+## Temporary-snapshot verifier recheck, 2026-10-23
+
+Both `verify_srsc_0102.py` and `verify_srsc_0102_array.py` now pass a temporary
+file containing the exact hash-verified bytes to `dragonrider_inspect`, rather
+than asking it to reopen the original path. The file is staged once per
+source container and reused for that file's selected record comparisons. Two
+synthetic integration tests confirm the verifier gives the inspector those
+same bytes; a third confirms both scripts reject symlinked inventory paths.
+Fresh runs against all 178 inventory entries matched 4,203
+`0x0102` records in both GCC debug and release inspectors; the array variant
+also matched 84,258 entries in both builds. This closes the inspector-side
+reopen gap for these comparisons, without changing the compared fields or
+their interpretation.
 
 ## Tail framing hypotheses, 2026-10-19
 

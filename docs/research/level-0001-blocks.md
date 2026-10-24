@@ -142,6 +142,10 @@ This is static direct-call evidence only. It does not classify the remaining
 dynamic flag, find indirect or virtual callers, establish reachability, assign
 a meaning to the flags, or establish the discriminator's runtime role.
 
+The five documented discriminator-related `0x04`/`0x08`/`0x10`/`0x20` flag
+tests are now guarded by a hash-pinned, seven-anchor static verifier. Its scope
+and limits are in [the branch-anchor note](level-0001-query-flag-branches-2026-10-23.md).
+
 ## Per-entry cell pointer grid, 2026-10-18
 
 The pointer checked at `entry + 0x34` is used as a runtime cell-head array on
@@ -223,6 +227,63 @@ The result extends the entry evidence without completing the `(1,0,0)` format:
 first-dword semantics, the discriminator's general meaning, remaining entry
 fields, runtime visibility, axes, units, geometry and other editions remain
 unknown.
+
+### Entry-mode measurement hardening, 2026-10-23
+
+`measure_level_entry_modes.py` now validates selected inventory-entry shape,
+hash syntax, status, file size, root-contained non-symlink paths, and each
+file hash before decoding. It also rejects a selected `(1,0,0)` range that
+overlaps its SRSC table before interpreting table bytes as a level prefix.
+That is a safety rule for this targeted raw-entry measurement, not a new
+general SRSC layout requirement: the engine reader continues to report rather
+than reject otherwise valid unusual payload placement. Five synthetic tests
+cover structural truncation, count limits, missing selected records, table
+overlap, invalid inventory metadata, and a symlink path. A fresh hash-checked
+run reproduced the prior 23-file / 4,445-entry discriminator and flag totals.
+The first full CLI invocation exposed a missing `json` import; the import is
+fixed and a new synthetic command-path regression test verifies
+machine-readable output. The command now completes with six synthetic tests
+passing and reports the same 23-file / 4,445-entry totals. Its
+`unparsed_trailing_bytes` count (2,019,088) is data left after the measured
+fields, not a claim that the payload has that many format-level trailing bytes.
+
+### Cross-extension selector and storage-branch sweep, 2026-10-23
+
+**Input:** hash-checked installed US retail SRSC files, using the private
+`research/exports/srsc-records/us.json` inventory. **Method:**
+`measure_level_0001_inventory.py` with Python 3.14.7 and zlib
+1.3.1.zlib-ng; the existing independent block parser and GCC 15.3.1
+debug/release inspectors provided a second check for the 23 selected level files.
+**Confidence:** high for this inventoried US sample; other editions and
+unextracted or runtime-created files remain outside the comparison.
+
+The hash-checked SRSC inventory contains 178 examined US retail files. A
+bounded scan of every table found the `(1,0,0)` selector exactly once in 23
+files, all `.lvl`; no such record appeared in the other 155 files. All 23
+selected payloads used storage word `1`, selecting the traced positive-storage
+path. The independent bounded decoder accepted 4,445 blocks, all as complete
+zlib streams with the derived decoded sizes. This extends selector coverage
+across the inventoried extensions; it does not establish that other editions,
+unextracted assets, or runtime-created files lack alternate storage words.
+
+The reproducible tool verifies each inventory file's recorded size and SHA-256
+before reading its SRSC table, rejects duplicate selector matches and table
+overlap, and reports only aggregate per-extension counts:
+
+```sh
+python3 tools/research/measure_level_0001_inventory.py \
+  research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research \
+  -p 'test_measure_level_0001_inventory.py' -v
+```
+
+Against this installed-US inventory, the command reported 178 files examined,
+23 `(1,0,0)` records in `.lvl`, 4,445 blocks and 4,445 complete zlib streams;
+the two synthetic tests passed. The existing Python/C++ cross-check also
+matched the same 23 level records with both GCC debug and release inspectors;
+each reported storage word `1`, 4,445 complete streams, 628,856 grid items,
+and 542,791 cells. The inventory is private and no media or assets are
+included in this repository.
 
 ```sh
 sha256sum research/binaries/us/Drakan.exe

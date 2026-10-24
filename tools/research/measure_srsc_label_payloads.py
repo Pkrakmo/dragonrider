@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import struct
 
-from measure_srsc_lookup import read_records
+from measure_srsc_lookup import read_snapshot
 
 
 KINDS = (0x0101, 0x0201, 0x0301)
@@ -44,27 +44,25 @@ def main():
     for entry in entries:
         if entry['status'] != 'examined':
             raise ValueError('inventory contains unexamined files')
-        read_records(root, entry)  # Validate and hash each file before parsing payloads.
-        with (root / entry['path']).open('rb') as stream:
-            header = stream.read(12)
-            _, table, count = struct.unpack_from('<HIH', header, 4)
-            stream.seek(table)
-            raw = stream.read(count * 14)
-            if len(raw) != count * 14:
-                raise ValueError('short table read')
-            for kind, _, _, start, length in struct.iter_unpack('<HHHII', raw):
-                if kind not in KINDS:
-                    continue
-                if start < 12 or start + length > table:
-                    raise ValueError('payload outside bounded pre-table range')
-                # Only 16-bit string lengths are measured; refuse larger payloads.
-                if length > 65537:
-                    raise ValueError('selected payload exceeds measurement limit')
-                stream.seek(start)
-                payload = stream.read(length)
-                if len(payload) != length:
-                    raise ValueError('short payload read')
-                totals[f'{kind:04x}'].update(classify(payload))
+        data, records = read_snapshot(root, entry)
+        _, table, count = struct.unpack_from('<HIH', data, 4)
+        raw = data[table:table + count * 14]
+        if count != len(records):
+            raise ValueError('table changed during measurement')
+        for i, (kind, second, third, start, length) in enumerate(struct.iter_unpack('<HHHII', raw)):
+            if (kind, second, third) != records[i]:
+                raise ValueError('table changed during measurement')
+            if kind not in KINDS:
+                continue
+            if start < 12 or start + length > table:
+                raise ValueError('payload outside bounded pre-table range')
+            # Only 16-bit string lengths are measured; refuse larger payloads.
+            if length > 65537:
+                raise ValueError('selected payload exceeds measurement limit')
+            payload = data[start:start + length]
+            if len(payload) != length:
+                raise ValueError('short payload read')
+            totals[f'{kind:04x}'].update(classify(payload))
     print(json.dumps({'files_examined': len(entries), 'kinds': totals}, indent=2, sort_keys=True))
 
 

@@ -2,12 +2,37 @@
 """Measure level-entry discriminator and post-name flag on hashed US levels."""
 import argparse
 from collections import Counter
+import hashlib
 import json
 from pathlib import Path
+import re
 import struct
 
 from measure_0102_model_candidates import table
-from measure_srsc_prefix_selector import read_verified
+from measure_level_0001 import load_inventory, safe_inventory_path
+
+
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+
+
+def level_inventory_entries(entries):
+    """Select only well-formed level inventory entries before opening files."""
+    selected = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError('invalid inventory entry')
+        path = entry.get('path')
+        if not isinstance(path, str):
+            raise ValueError('invalid inventory path')
+        if Path(path).suffix.lower() != '.lvl':
+            continue
+        expected_hash = entry.get('sha256')
+        if not isinstance(expected_hash, str) or not _SHA256.fullmatch(expected_hash):
+            raise ValueError('invalid inventory hash')
+        selected.append(entry)
+    if not selected:
+        raise ValueError('inventory contains no SRSC level candidates')
+    return selected
 
 
 def decode(payload):
@@ -43,14 +68,34 @@ def decode(payload):
 
 
 def measure(data):
-    _, records = table(data)
+    table_offset, records = table(data)
     matches = [record for record in records if record[:3] == (1, 0, 0)]
     if len(matches) != 1:
         raise ValueError('expected exactly one (1,0,0) record')
     _, _, _, start, length = matches[0]
     if start < 12 or start > len(data) or length > len(data) - start:
         raise ValueError('level payload outside file')
+    table_end = table_offset + len(records) * 14
+    if start < table_end and table_offset < start + length:
+        raise ValueError('level payload overlaps SRSC table')
     return decode(memoryview(data)[start:start + length])
+
+
+def read_verified_level(root, entry):
+    """Read one inventory-selected level only after path, size, and hash checks."""
+    if not isinstance(entry, dict) or entry.get('status') != 'examined':
+        raise ValueError('inventory contains unexamined files')
+    expected_size = entry.get('file_size')
+    expected_hash = entry.get('sha256')
+    if type(expected_size) is not int or expected_size < 0:
+        raise ValueError('invalid inventory file size')
+    if not isinstance(expected_hash, str) or not _SHA256.fullmatch(expected_hash):
+        raise ValueError('invalid inventory hash')
+    path = safe_inventory_path(root, entry.get('path'))
+    data = path.read_bytes()
+    if len(data) != expected_size or hashlib.sha256(data).hexdigest() != expected_hash:
+        raise ValueError('inventory size or hash mismatch')
+    return data
 
 
 def main():
@@ -59,18 +104,15 @@ def main():
     parser.add_argument('inventory', type=Path)
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
-    inventory = json.loads(args.inventory.read_text(encoding='utf-8'))['files']
-    files = [item for item in inventory if Path(item['path']).suffix.lower() == '.lvl']
-    if not files:
-        raise ValueError('inventory contains no SRSC level candidates')
+    if not root.is_dir():
+        raise ValueError('root is not a directory')
+    files = level_inventory_entries(load_inventory(args.inventory))
     discriminators = Counter()
     flag_bits = Counter()
     cross = Counter()
     entries_total = trailing_total = 0
     for item in files:
-        if item['status'] != 'examined':
-            raise ValueError('inventory contains unexamined files')
-        entries, trailing = measure(read_verified(root, item))
+        entries, trailing = measure(read_verified_level(root, item))
         entries_total += len(entries)
         trailing_total += trailing
         for _, _, _, discriminator, flags in entries:

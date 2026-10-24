@@ -65,3 +65,12 @@ python3 tools/research/verify_database_descriptors.py research/installed/us rese
 python3 tools/research/verify_database_descriptors.py research/installed/us research/exports/asset-inventory/us.json --inspector build/release/dragonrider_inspect
 python3 -m unittest discover -s tools/research -p 'test_verify_database_descriptors.py'
 ```
+
+## Verified descriptor snapshot recheck, 2026-10-23
+
+The descriptor verifier now rejects unsafe inventory paths, verifies size and
+SHA-256, and passes a temporary copy of those same bytes to the inspector.
+Debug and release inspectors each matched 39 descriptors and 132 dependency
+entries. The optional same-path level comparison also reproduced its earlier
+counts. These results verify the measurement inputs; descriptor names and
+dependency IDs still do not establish path resolution or runtime loading.

@@ -13,6 +13,10 @@ This project was developed with substantial AI assistance and human review.
 ## Project status
 **Status: investigation phase.** DragonRider is far from playable: work so far focuses on bounded asset inspection and reverse-engineering research. There is no game runtime, renderer, playable level, or complete asset pipeline yet. Progress and open investigations are tracked in `TODO.md`.
 
+The [research coverage map](docs/research/coverage-map.md) separately tracks
+bounded evidence and implementation states by topic; its totals are not a
+game-completion percentage.
+
 See the [Git workflow](docs/GIT-WORKFLOW.md) for version control, private research, worktrees, and release preparation. Ignore rules do not replace staged-file review.
 
 The core library contains checked SRSC, bounded level-block diagnostics, selector-`0x0040` texture base-row and selector-`0x0030` palette-entry readers. The inspector also reports selected level grid and cell observations; no playable runtime exists yet. Building requires CMake 3.20 or newer, a C++20 compiler, Ninja for the presets, and zlib development headers and library (CMake `find_package(ZLIB)`). On Fedora 43, the following commands were verified on 2026-10-17 with GCC 15.3.1, CMake 3.31.11, and Ninja 1.13.1:

@@ -7,12 +7,17 @@ bodies and their fingerprints never appear in the output.
 """
 import argparse
 from collections import Counter, defaultdict
+import hashlib
 import json
 from pathlib import Path
+import re
 
 from measure_level_entry_caller import selected_payload
 from measure_level_objects import decode
-from measure_srsc_prefix_selector import read_verified
+from measure_level_0001 import load_inventory, safe_inventory_path
+
+
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def body_category(body):
@@ -90,19 +95,49 @@ def measure(payload):
     return counts
 
 
+def read_verified_level(root, item):
+    """Read a level once after validating its inventory identity and safe path."""
+    if not isinstance(item, dict) or item.get('status') != 'examined':
+        raise ValueError('inventory contains an unexamined level')
+    size = item.get('file_size')
+    digest = item.get('sha256')
+    if type(size) is not int or size < 0:
+        raise ValueError('invalid inventory file size')
+    if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+        raise ValueError('invalid inventory hash')
+    path = safe_inventory_path(root, item.get('path'))
+    data = path.read_bytes()
+    if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
+        raise ValueError('inventory size or hash mismatch')
+    return data
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('root', type=Path)
     parser.add_argument('inventory', type=Path)
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
-    items = json.loads(args.inventory.read_text(encoding='utf-8'))['files']
-    levels = [item for item in items if Path(item['path']).suffix.lower() == '.lvl']
+    if not root.is_dir():
+        raise ValueError('root is not a directory')
+    items = load_inventory(args.inventory)
+    levels = []
+    seen_paths = set()
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get('path'), str):
+            raise ValueError('invalid inventory entry')
+        if Path(item['path']).suffix.lower() != '.lvl':
+            continue
+        path_key = Path(item['path']).as_posix()
+        if path_key in seen_paths:
+            raise ValueError('duplicate level inventory path')
+        seen_paths.add(path_key)
+        levels.append(item)
     if not levels or any(item.get('status') != 'examined' for item in levels):
         raise ValueError('empty or incomplete level inventory')
     total = Counter()
     for item in levels:
-        total.update(measure(selected_payload(read_verified(root, item))))
+        total.update(measure(selected_payload(read_verified_level(root, item))))
     print(json.dumps({'level_files': len(levels), 'counts': dict(sorted(total.items()))},
                      indent=2, sort_keys=True))
 

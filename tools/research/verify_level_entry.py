@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import struct
 import subprocess
+import tempfile
 import zlib
 
 from measure_0102_model_candidates import table
@@ -74,51 +75,53 @@ def main():
     if not files:
         raise ValueError('no level files')
     entry_total = comparisons = lookup_comparisons = probe_comparisons = 0
-    for entry in files:
-        if entry['status'] != 'examined':
-            raise ValueError('inventory contains unexamined level')
-        data = read_verified(root, entry)
-        record, expected = selected(data)
-        entry_total += len(expected)
-        if probe:
-            _, records = table(data)
-            _, _, _, start, length = records[record]
-            payload = data[start:start + length]
-            if len(payload) > 32 * 1024 * 1024:
-                raise ValueError('probe payload exceeds limit')
-            actual = subprocess.run([str(probe)], input=struct.pack('<I', len(payload)) + payload,
-                                    capture_output=True, check=True).stdout.decode('ascii').splitlines()
-            lines = [f"{row['Level entry']}: {row['Prefix dwords']}:{row['Byte sequence length']}:"
-                     f"{row['Byte sequence CRC32']}: {row['Following dwords']}:{row['Inner count']}"
-                     for row in expected]
-            if actual != lines:
-                raise ValueError('probe does not match independent entry-prefix decoding')
-            probe_comparisons += len(expected)
-        selections = sorted({0, len(expected) // 2, len(expected) - 1} if expected else set())
-        first_words = [int(row['Prefix dwords'].split()[0], 16) for row in expected]
-        for index in selections:
-            # The inspector reopens the verified path; concurrent changes are not excluded.
-            result = subprocess.run([str(inspector), '--level-entry', str(record), str(index),
-                                     str(root / entry['path'])], capture_output=True, text=True, check=True)
-            actual = dict(line.split(': ', 1) for line in result.stdout.splitlines() if ': ' in line)
-            if any(actual.get(key) != value for key, value in expected[index].items()):
-                raise ValueError('inspector does not match independent entry-prefix decoding')
-            comparisons += 1
-        keys = {first_words[index] for index in selections}
-        missing = 0
-        while missing in keys or missing in first_words:
-            missing += 1
-        keys.add(missing)
-        for value in sorted(keys):
-            indices = [index for index, first in enumerate(first_words) if first == value]
-            expected_lookup = {'Matching entries': str(len(indices)),
-                               'First matching entry': str(indices[0]) if indices else 'none'}
-            result = subprocess.run([str(inspector), '--level-entry-find', str(record), str(value),
-                                     str(root / entry['path'])], capture_output=True, text=True, check=True)
-            actual = dict(line.split(': ', 1) for line in result.stdout.splitlines() if ': ' in line)
-            if any(actual.get(key) != result for key, result in expected_lookup.items()):
-                raise ValueError('inspector does not match independent first-word lookup')
-            lookup_comparisons += 1
+    with tempfile.TemporaryDirectory(prefix='dragonrider-level-entry-') as directory:
+        snapshot = Path(directory) / 'verified-level.lvl'
+        for entry in files:
+            if entry['status'] != 'examined':
+                raise ValueError('inventory contains unexamined level')
+            data = read_verified(root, entry)
+            record, expected = selected(data)
+            entry_total += len(expected)
+            if probe:
+                _, records = table(data)
+                _, _, _, start, length = records[record]
+                payload = data[start:start + length]
+                if len(payload) > 32 * 1024 * 1024:
+                    raise ValueError('probe payload exceeds limit')
+                actual = subprocess.run([str(probe)], input=struct.pack('<I', len(payload)) + payload,
+                                        capture_output=True, check=True).stdout.decode('ascii').splitlines()
+                lines = [f"{row['Level entry']}: {row['Prefix dwords']}:{row['Byte sequence length']}:"
+                         f"{row['Byte sequence CRC32']}: {row['Following dwords']}:{row['Inner count']}"
+                         for row in expected]
+                if actual != lines:
+                    raise ValueError('probe does not match independent entry-prefix decoding')
+                probe_comparisons += len(expected)
+            snapshot.write_bytes(data)
+            selections = sorted({0, len(expected) // 2, len(expected) - 1} if expected else set())
+            first_words = [int(row['Prefix dwords'].split()[0], 16) for row in expected]
+            for index in selections:
+                result = subprocess.run([str(inspector), '--level-entry', str(record), str(index),
+                                         str(snapshot)], capture_output=True, text=True, check=True)
+                actual = dict(line.split(': ', 1) for line in result.stdout.splitlines() if ': ' in line)
+                if any(actual.get(key) != value for key, value in expected[index].items()):
+                    raise ValueError('inspector does not match independent entry-prefix decoding')
+                comparisons += 1
+            keys = {first_words[index] for index in selections}
+            missing = 0
+            while missing in keys or missing in first_words:
+                missing += 1
+            keys.add(missing)
+            for value in sorted(keys):
+                indices = [index for index, first in enumerate(first_words) if first == value]
+                expected_lookup = {'Matching entries': str(len(indices)),
+                                   'First matching entry': str(indices[0]) if indices else 'none'}
+                result = subprocess.run([str(inspector), '--level-entry-find', str(record), str(value),
+                                         str(snapshot)], capture_output=True, text=True, check=True)
+                actual = dict(line.split(': ', 1) for line in result.stdout.splitlines() if ': ' in line)
+                if any(actual.get(key) != result for key, result in expected_lookup.items()):
+                    raise ValueError('inspector does not match independent first-word lookup')
+                lookup_comparisons += 1
     print(json.dumps({'files': len(files), 'entries_decoded': entry_total,
                       'selected_entries_compared': comparisons,
                       'lookup_comparisons': lookup_comparisons,

@@ -204,6 +204,22 @@ The measurement validates selected payload bounds and hashes each inventoried
 file before reading; gate categories and size boundaries have synthetic tests.
 It reports aggregate counts without copying sample payloads.
 
+## Installed `0x0051` third-selector distribution, 2026-10-23
+
+The aggregate third-selector scan rechecked all 178 installed-US SRSC files
+against the private inventory and found 23 records with first selector
+`0x0051`; every one has a zero third word. This matches the conditional
+writer path above, which sets the writer state to zero before requesting
+`(0x0051, 0)`. It does not establish that this writer produced the installed
+records or that every `0x0051` record must have a zero third word.
+
+```sh
+python3 tools/research/measure_srsc_third_selector_distribution.py \
+  research/installed/us research/exports/srsc-records/us.json
+python3 -m unittest discover -s tools/research \
+  -p 'test_measure_srsc_third_selector_distribution.py' -v
+```
+
 ## Reproduction
 
 ```sh

@@ -10,13 +10,13 @@ paths = subprocess.check_output(
     ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
 ).split(b"\0")
 destination = Path(tempfile.mkdtemp(prefix="dragonrider-act-"))
-allowed_roots = {".github", "apps", "include", "src", "tests", "tools"}
-allowed_extensions = {".cmake", ".cpp", ".h", ".hpp", ".java", ".json", ".py", ".sh", ".yml", ".yaml"}
+allowed_roots = {".github", "apps", "docs", "include", "src", "tests", "tools"}
+allowed_extensions = {".cmake", ".cpp", ".h", ".hpp", ".java", ".json", ".md", ".py", ".sh", ".yml", ".yaml"}
 for raw in paths:
     if not raw:
         continue
     relative = Path(raw.decode("utf-8"))
-    allowed = relative.as_posix() in {"CMakeLists.txt", "CMakePresets.json"} or (
+    allowed = relative.as_posix() in {"CMakeLists.txt", "CMakePresets.json", "TODO.md"} or (
         relative.parts[0] in allowed_roots and relative.suffix in allowed_extensions
     )
     if not allowed:

@@ -81,6 +81,16 @@ python3 tools/research/verify_level_grid.py research/installed/us research/expor
 python3 -m unittest discover -s tools/research -p 'test_verify_level_grid.py' -v
 ```
 
+## Verified snapshot comparison recheck, 2026-10-23
+
+The grid verifier now validates each inventory path, size, and SHA-256, parses
+the selected grid summaries from those bytes, then gives the inspector a
+temporary snapshot of the same bytes. Debug and release builds each matched
+67 selected summaries across all 23 US levels, reproducing 4,445 entries and
+628,856 grid points. The existing synthetic scanner tests still pass. This
+improves the provenance of inspector comparisons and does not establish grid
+runtime behavior or visual correctness.
+
 For Ghidra, use the disposable-project procedure in
 [the block trace](level-0001-blocks.md), substitute `TraceLevelGridCoordinates.java`
 and use fresh logs. Close any GUI using the project and serialize access.
