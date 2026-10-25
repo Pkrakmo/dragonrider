@@ -16,8 +16,8 @@ class CoverageMapTests(unittest.TestCase):
     def test_repository_map_is_valid_and_has_stable_totals(self) -> None:
         root = Path(__file__).resolve().parents[2]
         summary = VERIFY.summarize(VERIFY.load_map(root / "docs/research/coverage-map.json", root))
-        self.assertIn("Coverage topics: 17", summary)
-        self.assertIn("active: 13", summary)
+        self.assertIn("Coverage topics: 18", summary)
+        self.assertIn("active: 14", summary)
         self.assertIn("not_started: 3", summary)
         self.assertIn("blocked: 1", summary)
 

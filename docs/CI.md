@@ -50,6 +50,12 @@ unavailable for a new local execution. A separate GCC build with
 14 CTests. AddressSanitizer could not link because the local libasan runtime was
 missing; no package was installed.
 
+On 2026-10-24, a fresh GCC 15.3.1 build using the same checked-iterator and
+assertion flags passed all 18 CTests, including the bounded SRSC `0x0501`
+reader and its input-view lifetime contract. An UndefinedBehaviorSanitizer
+build could not link because `/usr/lib64/libubsan.so.1.0.0` is unavailable; no
+system package was installed.
+
 In a later 2026-10-18 restricted session, a newly prepared source snapshot
 again passed 14/14 CTests for each GCC configuration, plus 55 research,
 4 disc, and 6 Ghidra Python tests; actionlint 1.7.12 passed. The snapshot
@@ -126,11 +132,83 @@ Ghidra project files. Fresh GCC 15.3.1 debug and release builds each passed
 This remains local evidence only; hosted Linux CI is unverified because
 `actionlint`, `act` and a container API socket are unavailable.
 
-After that snapshot, the audio comparator gained file and directory symlink
-escape regression tests, and the byte-order measurement API gained exact input
-count validation. The current source-tree Python suites reran on 2026-10-23:
-347 research and 13 disc tests passed. This is not a new isolated snapshot or
-C++ build/CTest result.
+On 2026-10-24, the current integrated tree passed GCC debug and release
+builds with 18/18 CTests in each configuration, plus 419 research, 16 disc,
+and 6 Ghidra Python tests. This current-tree pass includes the bounded SRSC
+`0x0501` diagnostic and the new aggregate level/audio measurements. It does
+not substitute for an isolated snapshot or hosted CI verification.
+
+On 2026-10-24, the current helper produced a fresh 400-file snapshot
+including the selector-path, payload-extent and resource-inventory changes,
+plus the final extent-bound tests. Review found no symlinks, top-level private
+`research/`, `.git`, `.env`, build output, original media,
+PE binaries, archives or Ghidra project files. Fresh GCC 15.3.1 debug and
+release builds each passed 17/17 CTests; the snapshot Python suites passed
+393 research, 13 disc and 6 Ghidra tests. This verifies the allowlisted local
+source snapshot, not hosted CI; `actionlint`, `act` and a container API socket
+remain unavailable.
+
+Later on 2026-10-24, a fresh 423-file snapshot included the bounded `0x0501`
+reader, inspector command, private-sample verifier source, and boundary fixture
+for an opaque tail beyond the inspector's bounded read window. Review found no
+symlinks, top-level private `research/`, `.git`, `.env`, build outputs, original
+media, PE binaries, archives or Ghidra project files. Fresh GCC 15.3.1 debug
+and release builds each passed 18/18 CTests; Python suites passed 424 research,
+16 disc and 6 Ghidra bridge tests. This validates the reviewed local source
+snapshot; hosted CI remains unverified.
+
+A fresh 427-file snapshot on 2026-10-24 included all current allowlisted
+changes. Review found no symlinks, top-level private `research/`, `.git`,
+`.env`, build outputs or binary/media inputs. Fresh GCC 15.3.1 debug and
+release builds each passed 18/18 CTests; the snapshot Python suites passed
+437 research, 16 disc and 6 Ghidra tests. The snapshot excluded original media,
+PE binaries, archives and Ghidra project files. These checks validate the local
+source snapshot only; hosted CI remains unverified.
+
+After expanding the aggregate exact-suffix search to all other record payloads,
+a fresh 429-file helper snapshot was reviewed. It contained no symlinks,
+private top-level `research/`, `.git`, `.env`, build outputs, original media,
+executable binaries, archives or Ghidra projects. Fresh GCC 15.3.1 debug and
+release builds each passed 18/18 CTests; Python suites passed 444 research,
+16 disc and 6 Ghidra tests. Hosted CI is still unverified.
+
+Earlier, after the 362-file snapshot on 2026-10-23, the audio comparator
+gained file and directory symlink escape regression tests, and the byte-order
+measurement API gained exact input count validation. The source-tree Python
+suites reran then: 347 research and 13 disc tests passed. This records that
+separate earlier recheck, not the 2026-10-24 snapshot above.
+
+On 2026-10-25, a fresh 431-file helper snapshot included the current source,
+tests, research scripts, and public evidence docs. Review found no symlinks,
+private top-level `research/`, `.git`, `.env`, build outputs, original media,
+executables, archives, or Ghidra project files. Fresh GCC 15.3.1 debug and
+release builds each passed 18/18 CTests; Python suites passed 452 research,
+16 disc, and 6 Ghidra tests. The snapshot run was local; hosted CI remains
+unverified.
+
+Later on 2026-10-25, a fresh 458-file helper snapshot included the support-text
+shape classifier, its static program-literal verifier, and synthetic tests.
+Review found no symlinks, private top-level `research/`, `.git`, `.env`, build
+outputs, original media, executables, archives, or Ghidra project files. Fresh
+GCC 15.3.1 debug and release builds each passed 20/20 CTests; Python suites
+passed 494 research, 16 disc, and 6 Ghidra tests. The snapshot remained local:
+`actionlint`, `act`, and `gh` were unavailable, and Podman could not initialize
+its rootless state on the read-only runtime filesystem. Hosted CI remains
+unverified.
+
+After adding the bounded cross-level cell scalar and ordered-pair measurements,
+their synthetic tests, and the `0x0501` trio traversal-boundary check, a fresh
+466-file helper snapshot was reviewed. It contained no symlinks, private
+top-level `research/`, `.git`, build outputs, original media, executables,
+archives, or Ghidra projects. Fresh GCC 15.3.1 debug and release builds each
+passed 20/20 CTests; Python suites passed 512 research, 16 disc, and 6 Ghidra
+tests. `actionlint`, `act`, `gh`, and Docker/Podman sockets were unavailable in
+this environment, so the snapshot run remained local and hosted CI is
+unverified.
+
+On the current tree, a fresh GCC 15.3.1 debug build with `-Werror` passed
+20/20 CTests. A separate build with `-D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS`
+also passed 20/20 CTests. These checks do not replace hosted CI.
 
 ## Running the workflow locally
 

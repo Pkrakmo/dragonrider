@@ -12,6 +12,7 @@ from measure_level_0001 import safe_inventory_path
 
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+MAX_SNAPSHOT_SIZE = 256 * 1024 * 1024
 
 def measure(records):
     """Compare table-order first matches with a stable second-word ordering."""
@@ -50,11 +51,19 @@ def read_snapshot(root, entry):
     if not isinstance(expected_hash, str) or not _SHA256.fullmatch(expected_hash):
         raise ValueError('invalid inventory hash')
     path = safe_inventory_path(root, relative)
-    data = path.read_bytes()
     expected_size = entry.get('file_size', entry.get('size'))
     if expected_size is not None and (type(expected_size) is not int or expected_size < 0):
         raise ValueError('invalid inventory size')
-    if ((expected_size is not None and len(data) != expected_size)
+    if expected_size is None:
+        expected_size = path.stat().st_size
+    if expected_size > MAX_SNAPSHOT_SIZE:
+        raise ValueError('inventory size exceeds snapshot limit: ' + str(relative))
+    if path.stat().st_size != expected_size:
+        raise ValueError('inventory hash mismatch or size mismatch: ' + str(relative))
+    # Cap allocation if the path changes between the metadata check and read.
+    with path.open('rb') as source:
+        data = source.read(expected_size + 1)
+    if (len(data) != expected_size
             or hashlib.sha256(data).hexdigest() != expected_hash):
         raise ValueError('inventory hash mismatch or size mismatch: ' + str(relative))
     if len(data) < 12 or data[:4] != b'SRSC':

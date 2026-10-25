@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Synthetic parser tests for SRSC record field-anchor verification."""
 
+import hashlib
+from pathlib import Path
+import subprocess
+import tempfile
 import unittest
+from unittest.mock import patch
 
 from verify_srsc_record_field_anchors import (direct_references, instructions,
-                                               literal_address_offsets)
+                                               literal_address_offsets, main)
+import verify_srsc_record_field_anchors as field_anchors
 
 
 class InstructionTests(unittest.TestCase):
@@ -50,6 +56,30 @@ Disassembly of section .text:
             address.to_bytes(4, "little")
         self.assertEqual(literal_address_offsets(data, address), [6, 16])
         self.assertEqual(literal_address_offsets(b"no pointer", address), [])
+
+    def test_objdump_receives_the_hash_verified_snapshot(self):
+        payload = b"synthetic executable without accessor address literals"
+        disassembly = "\n".join(
+            f" {address:x}: 90 {instruction}"
+            for address, instruction in field_anchors.EXPECTED_INSTRUCTIONS.items()
+        ) + "\n 42b0d9: 90 call 0x45fad0\n 435601: 90 call 0x45fad0\n 441e2d: 90 call 0x45f5d0"
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "Drakan.exe"
+            source.write_bytes(payload)
+            seen = []
+
+            def fake_run(command, **kwargs):
+                snapshot = Path(command[-1])
+                self.assertNotEqual(snapshot, source)
+                self.assertEqual(snapshot.read_bytes(), payload)
+                seen.append(snapshot)
+                return subprocess.CompletedProcess(command, 0, disassembly, "")
+
+            with patch.object(field_anchors, "EXPECTED_SHA256", hashlib.sha256(payload).hexdigest()), \
+                    patch.object(field_anchors.subprocess, "run", fake_run), \
+                    patch("sys.argv", ["verify_srsc_record_field_anchors.py", str(source)]):
+                main()
+        self.assertEqual(len(seen), 1)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import hashlib
 from pathlib import Path
 import struct
 import tempfile
+from unittest.mock import patch
 from measure_srsc_lookup import measure, read_records, read_snapshot
 
 
@@ -29,7 +30,8 @@ class LookupMeasurements(unittest.TestCase):
             root = Path(directory)
             data = b'SRSC' + struct.pack('<HIH', 0x100, 12, 1) + struct.pack('<HHHII', 1, 2, 3, 12, 0)
             (root / 'sample').write_bytes(data)
-            entry = {'path': 'sample', 'sha256': hashlib.sha256(data).hexdigest()}
+            entry = {'path': 'sample', 'sha256': hashlib.sha256(data).hexdigest(),
+                     'file_size': len(data)}
             self.assertEqual(read_records(root, entry), [(1, 2, 3)])
             self.assertEqual(read_snapshot(root, entry), (data, [(1, 2, 3)]))
             entry['sha256'] = '0' * 64
@@ -57,12 +59,31 @@ class LookupMeasurements(unittest.TestCase):
                 read_records(root, dict(entry, file_size=len(data) + 1))
             with self.assertRaisesRegex(ValueError, 'invalid inventory hash'):
                 read_records(root, dict(entry, sha256='bad'))
+            self.assertEqual(read_records(
+                root, {key: value for key, value in entry.items() if key != 'file_size'}),
+                [(1, 2, 3)])
             with self.assertRaisesRegex(ValueError, 'invalid inventory path'):
                 read_records(root, dict(entry, path='../sample'))
             linked = root / 'linked'
             linked.symlink_to(Path(outside) / 'outside')
             with self.assertRaisesRegex(ValueError, 'symlink in inventory path'):
                 read_records(root, dict(entry, path=linked.name))
+
+    def test_rejects_large_file_size_before_reading(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sample = root / 'large'
+            with sample.open('wb') as output:
+                output.truncate(257 * 1024 * 1024)
+            entry = {'path': sample.name, 'sha256': '0' * 64,
+                     'file_size': sample.stat().st_size}
+            for selected in (entry, {key: value for key, value in entry.items()
+                                     if key != 'file_size'}):
+                with self.subTest(has_size='file_size' in selected), \
+                        patch.object(Path, 'open') as open_file:
+                    with self.assertRaisesRegex(ValueError, 'exceeds snapshot limit'):
+                        read_snapshot(root, selected)
+                    open_file.assert_not_called()
 
 
 if __name__ == '__main__':

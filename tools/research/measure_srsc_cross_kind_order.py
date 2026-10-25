@@ -117,6 +117,36 @@ def measure(records):
     return result
 
 
+def measure_0200_plus_four_first_selector(records):
+    """Measure the row i+4 first selector for first-match 0x0200 pair keys."""
+    first_matches = {}
+    for index, (first, second, _) in enumerate(records):
+        if first == 0x0200:
+            first_matches.setdefault((first, second), index)
+    pair_rows = sum(first == 0x0200 for first, _, _ in records)
+    counts = Counter({
+        "0200_pair_rows": pair_rows,
+        "unique_pair_keys": len(first_matches),
+        "duplicate_pair_rows": pair_rows - len(first_matches),
+        "first_selector_0208_rows": sum(first == 0x0208 for first, _, _ in records),
+        "successor_in_bounds": 0,
+        "successor_first_selector_0208": 0,
+        "successor_first_selector_other": 0,
+        "successor_out_of_bounds": 0,
+    })
+    for index in first_matches.values():
+        successor = index + 4
+        if successor >= len(records):
+            counts["successor_out_of_bounds"] += 1
+            continue
+        counts["successor_in_bounds"] += 1
+        if records[successor][0] == 0x0208:
+            counts["successor_first_selector_0208"] += 1
+        else:
+            counts["successor_first_selector_other"] += 1
+    return counts
+
+
 def aggregate_file_completeness(records, totals):
     """Update per-file relationship completeness without retaining file IDs."""
     per_file = measure(records)
@@ -154,8 +184,10 @@ def main():
     entries = load_inventory(args.inventory)
     relationship_totals = {label: Counter() for label, _, _ in KIND_PAIRS}
     completeness = {label: Counter() for label, _, _ in KIND_PAIRS}
+    successor_totals = Counter()
     for entry in entries:
         records = read_records(root, entry)
+        successor_totals.update(measure_0200_plus_four_first_selector(records))
         per_file = aggregate_file_completeness(records, completeness)
         for label, counts in per_file.items():
             relationship_totals[label].update(counts)
@@ -163,6 +195,7 @@ def main():
         "files_examined": len(entries),
         "kind_pairs": relationship_totals,
         "per_file_completeness": completeness,
+        "0200_first_match_i_plus_4_first_selector": successor_totals,
     }, indent=2, sort_keys=True))
 
 

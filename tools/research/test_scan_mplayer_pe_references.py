@@ -15,9 +15,9 @@ class MplayerReferenceScanTests(unittest.TestCase):
             suffix = (".exe", ".dll", ".ocx")[index % 3]
             relative = f"English_-_Mplayer_Files/pe{index}{suffix}"
             if index == 0:
-                data = b"fetch MPI file mICTemp.mpi mpdrakan.mpi"
+                data = b"fetch MPI file mICTemp.mpi mpdrakan.mpi mpurl.dat mphisto.csv mpusage.csv"
             elif index == 1:
-                data = ".tln drakan.tln".encode("utf-16le")
+                data = ".tln drakan.tln mpurl.dat".encode("utf-16le")
             else:
                 data = b"no target"
             path = root / relative
@@ -34,8 +34,12 @@ class MplayerReferenceScanTests(unittest.TestCase):
             self.assertEqual(result["files_scanned"], 21)
             self.assertEqual(result["ascii"][".mpi"], ["pe0.exe"])
             self.assertEqual(result["ascii"]["mpdrakan.mpi"], ["pe0.exe"])
+            self.assertEqual(result["ascii"]["mpurl.dat"], ["pe0.exe"])
+            self.assertEqual(result["ascii"]["mphisto.csv"], ["pe0.exe"])
+            self.assertEqual(result["ascii"]["mpusage.csv"], ["pe0.exe"])
             self.assertEqual(result["utf16le"][".tln"], ["pe1.dll"])
             self.assertEqual(result["utf16le"]["drakan.tln"], ["pe1.dll"])
+            self.assertEqual(result["utf16le"]["mpurl.dat"], ["pe1.dll"])
             self.assertFalse(result["executed_binaries"])
 
     def test_rejects_incomplete_duplicate_and_stale_inventories(self):

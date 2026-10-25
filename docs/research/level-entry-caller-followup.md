@@ -159,7 +159,8 @@ not evidence that `Dragon.rfl`, its raw writer, or other modules cannot
 produce selector-`0x0020` frames at runtime.
 
 ```sh
-sha256sum research/installed/us/English_-_Program_Files/Dragon.rfl
+sha256sum research/installed/us/English_-_Program_Files/Dragon.rfl \
+  research/binaries/us/Drakan.exe
 python3 tools/research/measure_direct_record_writers.py \
   research/installed/us/English_-_Program_Files/Dragon.rfl --target 0x101562f0
 python3 -m unittest discover -s tools/research -p 'test_measure_direct_record_writers.py' -v
@@ -716,6 +717,28 @@ objdump -d -Mintel --start-address=0x4372b0 --stop-address=0x4372c2 research/bin
 objdump -d -Mintel --start-address=0x40e100 --stop-address=0x40e120 research/binaries/us/Drakan.exe
 ```
 
+### Fresh disposable-import recheck, 2026-10-24
+
+**Observed, static and database-dependent:** Ghidra 12.1.4 imported a private
+copy of the hash-pinned US retail executable into a new `/tmp` project and
+reported successful analysis. A separate `-process Drakan.exe -readOnly
+-noanalysis` run of `TraceConditionalFrameProducer.java` reproduced the
+bounded direct-call counts: 26 references to full-record selector `0x0045f0d0`,
+ten to initializer `0x0045f600`, one to manager traversal `0x004294d0`, and two
+to gate `0x00445bd0`. The only immediate `PUSH 0x20` in those bounded contexts
+remains the already identified reader call at `0x004372bb`; none of the ten
+initializer contexts supplies that immediate first selector. The global RFL
+table reference report again reached its explicit cap of 40. This independently
+repeats the earlier database-dependent report on a disposable import, without
+identifying a frame producer or ruling out indirect calls.
+
+The source executable SHA-256 was
+`23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`.
+Ghidra reported unresolved Windows libraries during import. The bounded
+reference results therefore describe this analyzed project only; they do not
+establish complete cross-references, execution, or frame semantics. The fresh
+project and logs are private temporary outputs, not repository artifacts.
+
 ## Aggregate conditional-frame byte variants, 2026-10-23
 
 **Measured:** `measure_level_frame_variants.py` rechecks every selected level
@@ -1093,3 +1116,38 @@ and 2 tests respectively; the full research suite passed 190 tests. Debug
 and release builds each passed 17 CTests, and both independent probe runs
 compared all 16,312 objects and 23 inspector summaries. These checks cover
 the current GCC/Linux environment, not other platforms.
+
+## Exact level-frame token search in US code and module snapshots, 2026-10-25
+
+**Measured, static; confidence high for these exact snapshots:** for the US
+retail edition, Python 3.14.7 ran `measure_level_frame_module_matches.py` to
+rebuild the set of complete `(tag:u32, length:u16, body)` tokens from all 23
+size/SHA-256-verified US `.lvl` records. It then searched exact byte
+snapshots of the installed US `Dragon.rfl` and retail `Drakan.exe`. The RFL
+snapshot was 1,724,416 bytes with
+SHA-256 `9b6496b65e962cf35dd1e18f424f2c8af08ceade78331dcc0b6da332ce844ac3`;
+the executable snapshot was 552,960 bytes with SHA-256
+`23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648`. Neither
+snapshot contained any of the 353 distinct complete level-frame tokens. The
+report contains aggregate counts only.
+
+This rules out literal occurrences of those complete serialized tokens in
+these two exact snapshots. It does not rule out runtime construction,
+transformation, indirect or compressed storage, another module, or other
+editions; it does not establish the frame producer or meaning.
+
+```sh
+sha256sum research/installed/us/English_-_Program_Files/Dragon.rfl
+python3 tools/research/measure_level_frame_module_matches.py \
+  research/installed/us research/exports/srsc-records/us.json \
+  research/installed/us/English_-_Program_Files/Dragon.rfl
+python3 tools/research/measure_level_frame_module_matches.py \
+  research/installed/us research/exports/srsc-records/us.json \
+  research/binaries/us/Drakan.exe
+python3 -m unittest discover -s tools/research \
+  -p 'test_measure_level_frame_module_matches.py' -v
+```
+
+The five focused synthetic tests cover exact-token matches, empty token sets,
+module size/hash checks, duplicate inventory paths, and symlink/hardlink
+rejection.

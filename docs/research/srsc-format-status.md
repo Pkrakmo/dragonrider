@@ -54,6 +54,15 @@ explicit file-order or stable-second-selector mapping, preserving both current
 and original indices. It does not select a runtime order automatically. See
 [ADR 0021](../decisions/0021-srsc-record-lookup.md).
 
+The `0x0501` constructor diagnostics also provide an explicit helper for the
+measured `(0x0501, key)`, `(0x0503, key)`, `(0x0502, key)` run in a
+caller-supplied order and a `0x0502` reader for a 16-bit count plus opaque
+52-byte rows. Missing neighbor rows return no match; malformed order maps,
+truncated rows, and count/extent overflow are rejected. The rows and any
+tail remain raw input-backed spans: this does not assign row-field meaning,
+require the sample's ordering or lengths, or establish that the retail path
+executes. See [ADR 0027](../decisions/0027-srsc-0501-trio-and-0502-rows.md).
+
 Unknowns include individual selector meanings, payload formats, duplicate
 lookup behavior outside the paths traced in [SRSC lookup order](srsc-lookup-order.md), alternate versions and editions, offsets at
 or above 2 GiB in the original loader, and the contents' validity. The US

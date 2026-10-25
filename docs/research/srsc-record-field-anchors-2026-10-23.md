@@ -65,7 +65,9 @@ objdump -d -Mintel --start-address=0x0045f0d0 --stop-address=0x0045f805 \
   research/binaries/us/Drakan.exe
 ```
 
-The verifier asserts the executable hash, 17 bounded instruction anchors,
+The verifier asserts the executable hash, 22 bounded instruction anchors,
 the complete direct call/jump reference set, and absence of a raw absolute
-address literal for the accessor. It does not analyze computed or indirect
-dispatch, file contents, or alternative editions.
+address literal for the accessor. Its 2026-10-24 recheck now disassembles a
+temporary snapshot of the exact bytes it hashed; five synthetic tests passed,
+including verification that objdump received that snapshot. It does not
+analyze computed or indirect dispatch, file contents, or alternative editions.

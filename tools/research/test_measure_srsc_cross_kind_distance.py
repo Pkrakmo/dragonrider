@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from measure_srsc_cross_kind_distance import (
-    add_file_categories, load_entries, measure, read_verified_records,
+    MAX_SNAPSHOT_SIZE, add_file_categories, load_entries, measure, read_verified_records,
 )
 
 
@@ -137,6 +137,30 @@ class CrossKindDistanceTests(unittest.TestCase):
                 read_verified_records(root, {
                     "path": "sample", "status": "examined", "sha256": "g" * 64,
                 })
+
+    def test_rejects_recorded_size_mismatch_and_invalid_size(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data = srsc([(0x0101, 1, 0, 12, 0)])
+            (root / "sample").write_bytes(data)
+            entry = {"path": "sample", "status": "examined",
+                     "sha256": hashlib.sha256(data).hexdigest()}
+            with self.assertRaisesRegex(ValueError, "size mismatch"):
+                read_verified_records(root, dict(entry, file_size=len(data) + 1))
+            for bad_size in (-1, True, "12"):
+                with self.assertRaisesRegex(ValueError, "inventory size"):
+                    read_verified_records(root, dict(entry, file_size=bad_size))
+
+    def test_rejects_snapshot_size_over_limit_before_reading(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data = srsc([(0x0101, 1, 0, 12, 0)])
+            (root / "sample").write_bytes(data)
+            entry = {"path": "sample", "status": "examined",
+                     "sha256": hashlib.sha256(data).hexdigest(),
+                     "file_size": MAX_SNAPSHOT_SIZE + 1}
+            with self.assertRaisesRegex(ValueError, "snapshot limit"):
+                read_verified_records(root, entry)
 
 
 if __name__ == "__main__":

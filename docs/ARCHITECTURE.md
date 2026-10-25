@@ -18,6 +18,8 @@ The project/repository is `DragonRider`; C++ namespace and public include prefix
 - The level database-list reader preserves untrusted raw names without resolving paths; see [ADR 0009](decisions/0009-level-directory-inspection.md).
 - The restricted database descriptor reader preserves untrusted names and does not resolve them; see [ADR 0016](decisions/0016-database-descriptor-inspection.md).
 - The `0x0302` new-object structural reader returns input-backed spans without decoding or modeling cache state; see [ADR 0024](decisions/0024-srsc-0302-new-object-diagnostic.md).
+- The `0x0501` reader exposes only one observed length-prefixed skip and seven raw dwords, preserving its remainder opaque; see [ADR 0026](decisions/0026-srsc-0501-observed-prefix.md).
+- The `0x0501`-to-`0x0503`/`0x0502` neighbor helper and `0x0502` 52-byte-row reader preserve the observed constructor relationship without assigning selector or row semantics; see [ADR 0027](decisions/0027-srsc-0501-trio-and-0502-rows.md).
 - The `0x0102` prefix and array readers expose bounded raw fields without resolving embedded references; see [ADR 0019](decisions/0019-srsc-0102-prefix-inspection.md) and [ADR 0020](decisions/0020-srsc-0102-array-inspection.md).
 - Model point and group readers preserve raw words with explicit bounds and no renderer assumptions; see [ADR 0018](decisions/0018-model-geometry-inspection.md).
 - The `(1,0,0)` level block diagnostic validates bounded raw or zlib data without interpreting it as geometry; see [ADR 0011](decisions/0011-level-block-inspection.md).

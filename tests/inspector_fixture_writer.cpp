@@ -29,6 +29,41 @@ int main(int argc, char** argv) {
     write("record-0102-short.srsc", short0102);
     auto wrong0102 = record0102; wrong0102[28] = 3;
     write("record-0102-wrong.srsc", wrong0102);
+    // Observed 0x0501 prefix: length-prefixed bytes, seven raw dwords, opaque tail.
+    std::vector<unsigned char> record0501{'S','R','S','C',0,1,0,0,0,0,1,0,
+        3,0,'a',0,'b'};
+    for (const auto value : {0x01020304U, 0x11121314U, 0x21222324U, 0x31323334U,
+                             0x41424344U, 0x51525354U, 0x61626364U}) {
+        for (unsigned shift = 0; shift != 32; shift += 8)
+            record0501.push_back(static_cast<unsigned char>((value >> shift) & 0xff));
+    }
+    record0501.insert(record0501.end(), {0xde, 0xad, 0xbe});
+    const auto table0501 = static_cast<std::uint32_t>(record0501.size());
+    for (unsigned i = 0; i < 4; ++i) record0501[6 + i] = static_cast<unsigned char>(table0501 >> (8 * i));
+    record0501.insert(record0501.end(), {0x01,0x05, 0,0, 0,0, 12,0,0,0,
+                                         static_cast<unsigned char>(table0501 - 12),0,0,0});
+    write("record-0501.srsc", record0501);
+    auto short0501 = record0501;
+    short0501[12] = 10;
+    short0501[table0501 + 10] = static_cast<unsigned char>((table0501 - 12) - 1);
+    write("record-0501-short.srsc", short0501);
+    auto wrong0501 = record0501;
+    wrong0501[table0501] = 0x02;
+    write("record-0501-wrong.srsc", wrong0501);
+    // Maximum 16-bit prefix plus an opaque tail beyond the inspector's read window.
+    constexpr std::uint32_t large0501_payload = 2 + 65535 + 28 + 4;
+    std::vector<unsigned char> large0501(12 + large0501_payload, 0);
+    large0501[0] = 'S'; large0501[1] = 'R'; large0501[2] = 'S'; large0501[3] = 'C';
+    large0501[4] = 0; large0501[5] = 1; large0501[10] = 1;
+    large0501[12] = 0xff; large0501[13] = 0xff;
+    const auto large0501_table = static_cast<std::uint32_t>(large0501.size());
+    for (unsigned i = 0; i < 4; ++i) large0501[6 + i] = static_cast<unsigned char>(large0501_table >> (8 * i));
+    large0501.insert(large0501.end(), {0x01,0x05, 0,0, 0,0, 12,0,0,0,
+                                       static_cast<unsigned char>(large0501_payload),
+                                       static_cast<unsigned char>(large0501_payload >> 8),
+                                       static_cast<unsigned char>(large0501_payload >> 16),
+                                       static_cast<unsigned char>(large0501_payload >> 24)});
+    write("record-0501-large.srsc", large0501);
     // New-object 0x0302 frames for raw and nonzero storage branches.
     auto make0302 = [&](unsigned mode) {
         std::vector<unsigned char> bytes{'S','R','S','C',0,1,0,0,0,0,1,0, 2,0,'x','y'};

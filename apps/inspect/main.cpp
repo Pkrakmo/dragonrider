@@ -6,6 +6,7 @@
 #include <dragonrider/assets/riot/model_geometry.hpp>
 #include <dragonrider/assets/riot/srsc_0102.hpp>
 #include <dragonrider/assets/riot/srsc_0302.hpp>
+#include <dragonrider/assets/riot/srsc_0501.hpp>
 #include <dragonrider/assets/riot/level_directory_0000.hpp>
 #include <dragonrider/assets/riot/level_0001.hpp>
 #include <dragonrider/assets/riot/level_objects_0020.hpp>
@@ -48,6 +49,7 @@ void usage(std::ostream& out) {
            "       dragonrider_inspect --record-0102-array <record-index> <file>\n"
            "       dragonrider_inspect --record-0302-new <record-index> <file>\n"
            "       dragonrider_inspect --record-0302-new-decoded <record-index> <file>\n"
+           "       dragonrider_inspect --record-0501-observed-prefix <record-index> <file>\n"
            "       dragonrider_inspect --model-geometry <point-record> <group-record> <file>\n"
            "       dragonrider_inspect --manifest <edition> <file>\n"
            "       dragonrider_inspect --level-directory <record-index> <file>\n"
@@ -75,6 +77,7 @@ void usage(std::ostream& out) {
            "--record-0102-array summarizes the conditional array framing.\n"
            "--record-0302-new inspects the new-object branch framing without decoding its body.\n"
            "--record-0302-new-decoded validates the observed body branch and reports metadata only.\n"
+           "--record-0501-observed-prefix reports one observed prefix and raw words; remainder stays opaque.\n"
            "--model-geometry inspects explicitly selected model point and group records.\n"
            "--level-directory checks a level database-list prefix.\n"
            "--level-objects summarizes conditional object framing without resolving indices.\n"
@@ -256,6 +259,37 @@ int inspect_0302_new(const std::filesystem::path& path, std::size_t index, bool 
                     std::ostringstream out; out << std::hex << std::setfill('0') << std::setw(8) << value;
                     return out.str(); }() : "")
               << "\nTrailing bytes (unvalidated): " << record.length - parsed.consumed << '\n';
+    return 0;
+}
+
+int inspect_0501_observed_prefix(const std::filesystem::path& path, std::size_t index) {
+    Input input(path);
+    if (index >= input.records.size()) throw std::out_of_range("0x0501 record index exceeds record count");
+    const auto& record = input.records[index];
+    if (record.selectors[0] != 0x0501) throw std::invalid_argument("record selector is not 0x0501");
+    if (static_cast<std::uintmax_t>(record.offset) >
+        static_cast<std::uintmax_t>(std::numeric_limits<std::streamoff>::max()))
+        throw std::out_of_range("record offset is not seekable");
+    input.stream.seekg(static_cast<std::streamoff>(record.offset));
+    if (!input.stream) throw std::runtime_error("could not seek to 0x0501 record");
+    // A 16-bit length and its two-byte field cap the observed prefix at 65565.
+    constexpr std::size_t observed_max = 2 + 65535 + 7 * 4;
+    const auto amount = std::min<std::size_t>(record.length, observed_max);
+    std::vector<std::byte> bytes(amount);
+    read_exact(input.stream, bytes.data(), bytes.size());
+    const auto parsed = dragonrider::assets::riot::parse_srsc_0501_observed_prefix(bytes);
+    const auto prefix_crc = crc32(0, reinterpret_cast<const Bytef*>(parsed.skipped_prefix.data()),
+                                  static_cast<uInt>(parsed.skipped_prefix.size()));
+    const auto remainder_crc = crc32(0, reinterpret_cast<const Bytef*>(parsed.trailing_bytes.data()),
+                                     static_cast<uInt>(parsed.trailing_bytes.size()));
+    check_size_unchanged(input.stream, input.size);
+    std::cout << "Record: " << index << "\nSkipped bytes: " << parsed.skipped_prefix.size()
+              << "\nSkipped bytes CRC32: " << std::hex << std::setfill('0') << std::setw(8) << prefix_crc
+              << std::dec << "\nRaw dwords:";
+    for (const auto word : parsed.fixed_words) std::cout << ' ' << word;
+    std::cout << "\nObserved bytes consumed: " << parsed.consumed
+              << "\nOpaque remainder bytes: " << record.length - parsed.consumed
+              << "\nRead-window remainder CRC32: " << std::hex << std::setw(8) << remainder_crc << std::dec << '\n';
     return 0;
 }
 
@@ -819,6 +853,15 @@ int main(int argc, char** argv) {
         if (parsed.ec != std::errc{} || parsed.ptr != arg.data() + arg.size() ||
             std::string_view(argv[3]).starts_with('-')) { usage(std::cerr); return 2; }
         try { return inspect_0302_new(argv[3], index, std::string_view(argv[1]) == "--record-0302-new-decoded"); }
+        catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
+    }
+    if (argc == 4 && std::string_view(argv[1]) == "--record-0501-observed-prefix") {
+        std::size_t index = 0;
+        const std::string_view arg(argv[2]);
+        const auto parsed = std::from_chars(arg.data(), arg.data() + arg.size(), index);
+        if (parsed.ec != std::errc{} || parsed.ptr != arg.data() + arg.size() ||
+            std::string_view(argv[3]).starts_with('-')) { usage(std::cerr); return 2; }
+        try { return inspect_0501_observed_prefix(argv[3], index); }
         catch (const std::exception& error) { std::cerr << "Error: " << error.what() << '\n'; return 1; }
     }
     if (argc == 4 && (std::string_view(argv[1]) == "--record-0102" ||

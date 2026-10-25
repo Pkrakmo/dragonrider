@@ -593,6 +593,68 @@ if failures:
 PY
 ```
 
+## Mplayer PE resource type inventory, 2026-10-24
+
+`tools/research/inventory_mplayer_pe_resources.py` selected the 21 `.exe`,
+`.dll`, and `.ocx` files in the hash-checked `English_-_Mplayer_Files`
+cabinet group. Before invoking `wrestool` 0.32.3, it verified each file's
+size and SHA-256 against the private 337-file inventory, then passed the same
+verified bytes to the tool through temporary snapshots. The scan counted 229
+resource entries across 12 numeric resource IDs plus `TYPELIB`. Type ID 16
+(`RT_VERSION`) accounts for 12 entries in 12 files, consistent with the
+earlier VERSION-resource inventory; six files had no resources. The tool
+prints aggregate type IDs and counts only, caps inputs at 16 MiB, and does not
+execute the PE files. Resource type presence does not identify each resource's
+meaning, license, or runtime use.
+
+Reproduce the aggregate scan and synthetic tests with:
+
+```sh
+python3 tools/research/inventory_mplayer_pe_resources.py research/installed/us research/exports/asset-inventory/us.json
+python3 -m unittest discover -s tools/research -p 'test_inventory_mplayer_pe_resources.py' -v
+```
+
+## Bounded text shapes in `.lfl`, `.mpl`, and Mplayer `mpurl.dat`, 2026-10-24
+
+The size/SHA-verified US `mpurl.dat` is 2,500 bytes of ASCII with 82
+LF-delimited lines (54 nonempty, 28 blank) and 12 `http://` tokens. A separate
+hash-pinned scan finds the exact filename only in ASCII in Mplayer `mIC.exe`
+among the 21 Mplayer-group PEs; disassembly finds it passed to an unresolved
+call. The retail executable has no ASCII or UTF-16LE literal in its verified
+snapshot. These static references do not establish file reads, execution,
+active URL use, or network behavior. Reproduce with
+[`classify_mplayer_url_catalog.py`](../../tools/research/classify_mplayer_url_catalog.py)
+and see the [bounded note](mplayer-mpurl-dat-2026-10-24.md) for the data and
+instruction checks.
+
+Three hash-verified US `.lfl` files contain 4–5 CRLF path-like rows ending in
+`.lvl`, each alongside one row without a path separator. The sampled `.mpl`
+contains 16 CRLF path-like rows ending in `.reo`. This is consistent with
+text-list shapes but does not establish the header meaning, file consumer, or
+the purpose of `.reo` files. Reproduce with
+[`classify_retail_text_lists.py`](../../tools/research/classify_retail_text_lists.py)
+and see the [bounded note](retail-lfl-mpl-text-lists-2026-10-24.md).
+The follow-up basename and full-path candidate counts are recorded in the
+[inventory-link note](lfl-mpl-inventory-links-2026-10-25.md).
+
+Two additional US files named `mphisto.csv` and `mpusage.csv` have bounded
+ASCII CSV-like shapes with mixed row widths. Their exact names occur only in
+hash-pinned `gizmo.ocx` among the checked Mplayer PE files and retail
+`Drakan.exe`; static disassembly shows both names formatted into a `%s\\%s`
+path and passed to `fopen` in `wb` mode, then reaches `fwrite` and `fclose` on
+both non-null handle paths (43 exact instruction anchors). Runtime execution,
+successful writes, and output contents remain unknown. See the
+[CSV candidate note](mplayer-csv-candidates-2026-10-25.md).
+
+The 2026-10-25 follow-up classifies eight additional installed support-text
+files (`.htm`, `.ini`, `.url`, and `.txt`) using only hash-verified aggregate
+shape output. ASCII basename literals for two Mplayer HTML files occur in
+`mIC.exe`, and two Mplayer INI filenames occur in three Mplayer DLLs; none of
+the eight names was found in UTF-16LE or in retail `Drakan.exe`. These byte
+references are consistent with support files belonging to the Mplayer group,
+but do not establish that any path is opened or used. See the
+[support-text shape note](retail-support-text-shapes-2026-10-25.md).
+
 ## US and UK extracted disc inventories
 
 On 2026-10-17, the same script inventoried `research/extracted/us` and

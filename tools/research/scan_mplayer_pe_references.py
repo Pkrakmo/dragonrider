@@ -14,6 +14,9 @@ EXPECTED_FILES = 21
 MAX_PE_FILE_BYTES = 16 * 1024 * 1024
 TARGETS = {
     "mpdrakan.mpi": b"mpdrakan.mpi",
+    "mpurl.dat": b"mpurl.dat",
+    "mphisto.csv": b"mphisto.csv",
+    "mpusage.csv": b"mpusage.csv",
     "drakan.tln": b"drakan.tln",
     ".mpi": b".mpi",
     ".tln": b".tln",

@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 
 EXPECTED_SHA256 = "23630f48e20e8a9f42026501165ae1df407cfcee545a784ec930a4c25ee70648"
 EXPECTED_INSTRUCTIONS = {
@@ -88,9 +89,12 @@ def main():
     data = args.executable.read_bytes()
     if hashlib.sha256(data).hexdigest() != EXPECTED_SHA256:
         raise ValueError("unexpected executable SHA-256")
-    completed = subprocess.run(
-        [args.objdump, "-d", "-Mintel", str(args.executable)],
-        check=True, capture_output=True, text=True)
+    with tempfile.TemporaryDirectory(prefix="dragonrider-srsc-fields-") as temporary:
+        snapshot = Path(temporary) / "Drakan.exe"
+        snapshot.write_bytes(data)
+        completed = subprocess.run(
+            [args.objdump, "-d", "-Mintel", str(snapshot)],
+            check=True, capture_output=True, text=True)
     observed = instructions(completed.stdout)
     mismatches = {
         hex(address): {"expected": expected, "actual": observed.get(address)}

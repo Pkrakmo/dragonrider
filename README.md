@@ -30,7 +30,7 @@ cmake --build --preset release
 ctest --preset release
 ```
 
-Both presets passed 17/17 CTests on 2026-10-21 against the current tree. The
+Both presets passed 18/18 CTests on 2026-10-24 against the current tree. The
 debug inspector is at `build/debug/dragonrider_inspect`; the release inspector
 is under `build/release/`.
 

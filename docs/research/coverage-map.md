@@ -1,6 +1,6 @@
 # Research coverage map
 
-**Status:** active tracker, 2026-10-23. **Scope:** public, bounded evidence and implementation tracking for the base retail investigation. This is not a compatibility percentage, a promise of format completeness, or an original-source recovery claim.
+**Status:** active tracker, 2026-10-25. **Scope:** public, bounded evidence and implementation tracking for the base retail investigation. This is not a compatibility percentage, a promise of format completeness, or an original-source recovery claim.
 
 The machine-readable source is [`coverage-map.json`](coverage-map.json). It records one deliberately bounded topic at a time, links project-owned evidence, and separates byte/layout, loader, runtime, implementation, and validation states. Run this command to validate the schema and cited documents and calculate current totals:
 
@@ -20,9 +20,10 @@ python3 tools/research/verify_coverage_map.py docs/research/coverage-map.json
 | SRSC table | Bounded | Observed | Unknown | Diagnostic | Private | Record-field semantics |
 | SRSC `0x0102` | Bounded | Static partial | Unknown | Diagnostic | Private | Tail grammar or proven consumer |
 | SRSC `0x0302` | Bounded | Static partial | Unknown | Diagnostic | Private | Playback-path dispatch |
+| SRSC `0x0501`/`0x0502` constructor diagnostics | Bounded | Static partial | Unknown | Diagnostic | Private | Consumer execution and row/suffix meaning |
 | Database descriptors | Bounded | Static partial | Unknown | Diagnostic | Private | Full grammar/runtime association |
 | Model geometry | Bounded | Static partial | Unknown | Diagnostic | Private | Topology/materials/transforms |
-| Level `(1,0,0)` | Bounded | Static partial | Unknown | Diagnostic | Private | Fields and discriminator role |
+| Level `(1,0,0)` | Bounded | Static partial | Unknown | Diagnostic | Private | Fields, reference-pair scope, and discriminator role |
 | Level objects `(0x20,0,0)` | Bounded | Static partial | Unknown | Diagnostic | Private | Frame producer/consumer |
 | Textures/palettes | Bounded | Static partial | Unknown | Diagnostic | Private | Visual correctness |
 | Checked reader core | N/A | N/A | N/A | Partial | Synthetic | Add primitives only as needed |

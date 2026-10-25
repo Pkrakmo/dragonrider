@@ -389,7 +389,9 @@ class SrscReadHelperCallerTests(unittest.TestCase):
             f" {address:x}: 90 {instruction}"
             for address, instruction in (
                 verifier.EXPECTED_INSTRUCTIONS | verifier.EXPECTED_CALLER_INSTRUCTIONS |
-                verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS
+                verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS |
+                verifier.EXPECTED_SELECTOR_LOOKUP_INSTRUCTIONS |
+                verifier.EXPECTED_SELECTOR_ARGUMENT_CALLER_INSTRUCTIONS
             ).items()
         ]
         text = "\n".join(rows)
@@ -417,7 +419,9 @@ class SrscReadHelperCallerTests(unittest.TestCase):
             f" {address:x}: 90 {instruction}"
             for address, instruction in (
                 verifier.EXPECTED_INSTRUCTIONS | verifier.EXPECTED_CALLER_INSTRUCTIONS |
-                verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS
+                verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS |
+                verifier.EXPECTED_SELECTOR_LOOKUP_INSTRUCTIONS |
+                verifier.EXPECTED_SELECTOR_ARGUMENT_CALLER_INSTRUCTIONS
             ).items()
         ]
         baseline = "\n".join(rows)
@@ -428,12 +432,93 @@ class SrscReadHelperCallerTests(unittest.TestCase):
                     f" {row_address:x}: 90 {'invalid mutation' if row_address == address else instruction}"
                     for row_address, instruction in (
                         verifier.EXPECTED_INSTRUCTIONS | verifier.EXPECTED_CALLER_INSTRUCTIONS |
-                        verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS
+                        verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS |
+                        verifier.EXPECTED_SELECTOR_LOOKUP_INSTRUCTIONS |
+                        verifier.EXPECTED_SELECTOR_ARGUMENT_CALLER_INSTRUCTIONS
                     ).items()
                 ]
                 mutated = "\n".join(mutated_rows)
                 with self.assertRaisesRegex(ValueError, "anchors differ"):
                     verifier.verify_instruction_anchors(mutated)
+
+    def test_october_24_followup_request_expressions_are_explicit(self):
+        expected = {
+            0x00424ADF: "48 (immediate size-slot store)",
+            0x00424B86: "2 (immediate size-slot store)",
+            0x004254E1: "2 (EDI=2 retained across read/skip helpers)",
+            0x00425618: "4 (ESI=4 retained across helper)",
+            0x0042562C: "4 (ESI=4 retained across helper)",
+            0x00425C35: "48 (EDI=0x30 retained across helper)",
+            0x00433279: "DWORD [esi+0x22]",
+            0x004332C2: "DWORD [esp+0x10]",
+            0x00435737: "4 * (DWORD [esp+0x18] & 0xffff)",
+            0x00435C13: "DWORD [esp+0x1c]",
+            0x00435D1C: "DWORD [esp+0x30]",
+            0x0042603C: "16 * (DWORD [esi+0x8] + EBP)",
+            0x0042BBA1: "DWORD [esp+0x28]",
+            0x0042BCB7: "DWORD [esp+0x28]",
+            0x00437782: "4 * DWORD [esp+0x20]",
+            0x0043779D: "2 * DWORD [esp+0x18]",
+            0x0045F47E: "min(DWORD [esp+0x10] & 0xffff, DWORD [esp+0x1c])",
+            0x004156F3: "4 (EBX=4 retained across bounded-read, skip, and word-reader helpers)",
+            0x0043143F: "12 (EBX=0xc retained across preceding bounded read)",
+            0x00437035: "4 (ESI=4 retained on successful preceding read)",
+            0x004376A9: "4 (EBP=4 retained across bounded read and 0x409db0)",
+            0x004376D4: "4 (EBP=4 retained across bounded read and 0x409db0 calls)",
+            0x004223BA: ("conditional when [esp+0x38] <= 0: 26*A*C + "
+                          "4*(A+1)*(C+1); EBX retained across GlobalAlloc/GlobalLock"),
+            0x0042B293: ("min(capacity DWORD [esp+0x1c]@0x42b1e4, "
+                          "record DWORD [base+26*index+0x6]); EDI preserved by 0x45f270"),
+            0x0042EEEF: "DWORD [0x0047d050 + 4*(DWORD [esp+0x20] & 0xffff)]",
+            0x0040BE48: ("DWORD [esp+0x14] (local targeted as the buffer by "
+                          "0x45f370 at 0x40bdd9)"),
+        }
+        actual = {
+            address: verifier.EXPECTED_VARIABLE_REQUEST_FORMULAS[address]["formula"]
+            for address in expected
+        }
+        self.assertEqual(actual, expected)
+
+    def test_two_word_selector_lookup_has_mutation_sensitive_anchors(self):
+        combined = (verifier.EXPECTED_INSTRUCTIONS | verifier.EXPECTED_CALLER_INSTRUCTIONS |
+                    verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS |
+                    verifier.EXPECTED_SELECTOR_LOOKUP_INSTRUCTIONS |
+                    verifier.EXPECTED_SELECTOR_ARGUMENT_CALLER_INSTRUCTIONS)
+        baseline = "\n".join(
+            f" {address:x}: 90 {instruction}" for address, instruction in combined.items())
+        verifier.verify_instruction_anchors(baseline)
+        selector_path_anchors = (verifier.EXPECTED_SELECTOR_LOOKUP_INSTRUCTIONS |
+                                  verifier.EXPECTED_SELECTOR_ARGUMENT_CALLER_INSTRUCTIONS)
+        for address in selector_path_anchors:
+            with self.subTest(anchor=hex(address)):
+                mutated = "\n".join(
+                    f" {row_address:x}: 90 "
+                    f"{'invalid mutation' if row_address == address else instruction}"
+                    for row_address, instruction in combined.items())
+                with self.assertRaisesRegex(ValueError, "anchors differ"):
+                    verifier.verify_instruction_anchors(mutated)
+
+    def test_selector_path_direct_caller_sets_are_exact(self):
+        self.assertEqual(verifier.EXPECTED_SELECTOR_CALLERS, {
+            0x00415360: {0x00415345, 0x0041682E, 0x00416BA8, 0x00417450,
+                         0x0041801F, 0x00418B24},
+            0x004155D0: {0x0041538D},
+            0x0045FA10: {0x00415668, 0x0042476E, 0x00433030, 0x0045F24D},
+        })
+        lines = []
+        for target, callers in verifier.EXPECTED_SELECTOR_CALLERS.items():
+            for address in callers:
+                lines.append(f" {address:x}: e8 00 00 00 00 call 0x{target:x}")
+        self.assertEqual(
+            verifier.verify_selector_callers("\n".join(lines)),
+            verifier.EXPECTED_SELECTOR_CALLERS,
+        )
+        missing = lines[:-1]
+        with self.assertRaisesRegex(ValueError, "direct callers"):
+            verifier.verify_selector_callers("\n".join(missing))
+        unexpected = lines + [" 401234: e8 00 00 00 00 call 0x45fa10"]
+        with self.assertRaisesRegex(ValueError, "direct callers"):
+            verifier.verify_selector_callers("\n".join(unexpected))
 
     def test_new_register_constant_callers_have_mutation_sensitive_anchors(self):
         callers_added = {
@@ -450,7 +535,9 @@ class SrscReadHelperCallerTests(unittest.TestCase):
             f" {address:x}: 90 {instruction}"
             for address, instruction in (
                 verifier.EXPECTED_INSTRUCTIONS | expected |
-                verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS
+                verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS |
+                    verifier.EXPECTED_SELECTOR_LOOKUP_INSTRUCTIONS |
+                    verifier.EXPECTED_SELECTOR_ARGUMENT_CALLER_INSTRUCTIONS
             ).items())
         verifier.verify_instruction_anchors(baseline)
         for address in anchors:
@@ -459,7 +546,9 @@ class SrscReadHelperCallerTests(unittest.TestCase):
                     f" {row_address:x}: 90 {'invalid mutation' if row_address == address else instruction}"
                     for row_address, instruction in (
                         verifier.EXPECTED_INSTRUCTIONS | expected |
-                        verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS
+                        verifier.EXPECTED_VARIABLE_REQUEST_INSTRUCTIONS |
+                        verifier.EXPECTED_SELECTOR_LOOKUP_INSTRUCTIONS |
+                        verifier.EXPECTED_SELECTOR_ARGUMENT_CALLER_INSTRUCTIONS
                     ).items()
                 ]
                 with self.assertRaisesRegex(ValueError, "anchors differ"):

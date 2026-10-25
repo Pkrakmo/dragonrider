@@ -23,6 +23,7 @@ KIND_PAIRS = (
 _HEADER = struct.Struct("<4sHIH")
 _RECORD = struct.Struct("<HHHII")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+MAX_SNAPSHOT_SIZE = 256 * 1024 * 1024
 
 
 def _safe_path(root, value):
@@ -53,13 +54,21 @@ def read_verified_records(root, entry):
     expected = entry.get("sha256")
     if not isinstance(expected, str) or not _SHA256.fullmatch(expected):
         raise ValueError("invalid inventory hash")
-    path = _safe_path(root, entry.get("path"))
-    size = path.stat().st_size
+    relative = entry.get("path")
+    path = _safe_path(root, relative)
+    expected_size = entry.get("file_size", entry.get("size"))
+    if expected_size is not None and (type(expected_size) is not int or expected_size < 0):
+        raise ValueError("invalid inventory size")
+    size = path.stat().st_size if expected_size is None else expected_size
+    if size > MAX_SNAPSHOT_SIZE:
+        raise ValueError("inventory size exceeds snapshot limit")
+    if path.stat().st_size != size:
+        raise ValueError("inventory hash mismatch or size mismatch")
     with path.open("rb") as stream:
-        contents = stream.read()
-    if hashlib.sha256(contents).hexdigest() != expected:
-        raise ValueError("inventory hash mismatch")
-    if len(contents) != size or len(contents) < _HEADER.size:
+        contents = stream.read(size + 1)
+    if len(contents) != size or hashlib.sha256(contents).hexdigest() != expected:
+        raise ValueError("inventory hash mismatch or size mismatch")
+    if len(contents) < _HEADER.size:
         raise ValueError("short SRSC header")
     magic, version, table_offset, count = _HEADER.unpack_from(contents)
     if magic != b"SRSC" or version != 0x0100 or count == 0:

@@ -138,6 +138,45 @@ track 8 retained 87,527 differing frames in 9,477,887 aligned frames. The
 the same measured content and improves byte-to-digest provenance; it does not
 identify why track 8 differs or establish audibility or musical significance.
 
+## Hash-pinned PCM recheck, 2026-10-24
+
+All 19 CUE/BIN/patch archive entries in the private archival manifest passed
+`sha256sum -c`. A fresh `compare_audio.py` run again found the +673-frame
+alignment on tracks 2–8, identical aligned program frames for tracks 2–7, and
+87,527 differing aligned frames on track 8. Its report matched
+`final-confirm-20261019.json` exactly after removing only the newly explicit
+byte-order-assumption field. A fresh `audio_tail_analysis.py` report matched
+the prior cutoff report's input metadata, alignment, track, boundary, terminal,
+and unpaired measurements exactly.
+
+The five-window-per-track byte-order check again favored little-endian sample
+interpretation in aggregate: median high/audible ratios were `5.81e-9` (US)
+and `6.22e-9` (Europe), versus `0.0986` and `0.0980` big-endian. Little-endian
+was lower in 30/34 usable US windows and 30/35 Europe windows; one US window
+was unusable. This remains signal-shape evidence, not an independent decode or
+proof of BIN byte-order provenance. The exact byte comparisons do not depend
+on sample decoding. The data establish sample differences in the measured
+track-8 interval, not musical content, cause, audibility, or mastering intent.
+Fresh reports are private under ignored `research/exports/audio-comparison/`.
+
+Reproduce with the original media and private archival manifest:
+
+```sh
+sha256sum -c research/exports/audio-comparison/archival.sha256
+python3 tools/disc/compare_audio.py \
+  'Drakan - Order of the Flame (USA)/Drakan - Order of the Flame (USA).cue' \
+  'Drakan - Order of the Flame (Europe)/Drakan - Order of the Flame (Europe).cue' \
+  research/exports/audio-comparison/recheck-20261024.json
+python3 tools/disc/measure_cdda_byte_order.py \
+  'Drakan - Order of the Flame (USA)/Drakan - Order of the Flame (USA).cue' \
+  'Drakan - Order of the Flame (Europe)/Drakan - Order of the Flame (Europe).cue' \
+  research/exports/audio-comparison/archival.sha256 --windows-per-track 5
+python3 tools/research/audio_tail_analysis.py \
+  'Drakan - Order of the Flame (USA)/Drakan - Order of the Flame (USA).cue' \
+  'Drakan - Order of the Flame (Europe)/Drakan - Order of the Flame (Europe).cue' \
+  > research/exports/audio-comparison/audio-tail-recheck-20261024.json
+```
+
 An input-boundary review on 2026-10-23 found that the comparator rejected
 absolute and parent-traversal names but would follow a symlinked BIN member.
 The resolver now rejects symlink components and requires the resolved regular

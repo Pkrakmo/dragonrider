@@ -9,6 +9,7 @@ from measure_srsc_cross_kind_order import (
     aggregate_file_completeness,
     load_inventory,
     measure,
+    measure_0200_plus_four_first_selector,
     read_records,
 )
 
@@ -25,6 +26,23 @@ def srsc(records, *, table_offset=12, payloads=None):
 
 
 class CrossKindOrderTests(unittest.TestCase):
+    def test_0200_first_match_plus_four_selector_categories(self):
+        records = [
+            (0x0200, 1, 0), (0x0200, 2, 0), (0x0200, 1, 9),
+            (0x0100, 0, 0), (0x0208, 0, 0),
+            (0x0100, 0, 0), (0x0100, 0, 0), (0x0200, 3, 0),
+        ]
+        self.assertEqual(dict(measure_0200_plus_four_first_selector(records)), {
+            "0200_pair_rows": 4,
+            "unique_pair_keys": 3,
+            "duplicate_pair_rows": 1,
+            "first_selector_0208_rows": 1,
+            "successor_in_bounds": 2,
+            "successor_first_selector_0208": 1,
+            "successor_first_selector_other": 1,
+            "successor_out_of_bounds": 1,
+        })
+
     def test_unique_order_missing_and_duplicate_categories(self):
         records = [
             (0x0101, 10, 0),  # unique target before source
